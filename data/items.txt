@@ -1,0 +1,6 @@
+# id "name" slot armor power value
+0 "Rusty Stiletto" 0 0 8 24
+1 "Old Sabatons" 1 12 0 18
+2 "Moonlit Talisman" 2 4 10 65
+3 "Dragonfang" 0 6 32 700
+4 "Emberguard Boots" 1 28 4 550

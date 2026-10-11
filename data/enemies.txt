@@ -1,0 +1,4 @@
+# "name" hp armor power speed aggro attackRange xp gold lootItem r g b
+"Skeleton" 95 6 12 3.2 12 2.3 70 18 0 159 166 159
+"Hollow Wisp" 65 2 16 4.1 13 7 85 23 2 100 169 196
+"Grave Sentinel" 180 22 20 2.5 11 2.8 130 35 1 143 135 119

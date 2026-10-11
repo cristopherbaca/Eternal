@@ -37,3 +37,9 @@ Comparison: panel proportions and red/blue bars match the boss footage layout. P
 Five silhouettes and 30 data-driven abilities with MP/cooldowns: fire orbs/embers, fire circles, frost, arrows/multishot/traps, heals/wards/resurrection, melee/taunt/charge, poison/backstab/dash. Swept projectile collision, armor formula, particles and grass impulses. Mouse/arrow crosshair, Tab target, six-slot hotbar, `C` class selection. `./build/eternal_rpg --demo` repeatedly casts real abilities for inspection.
 
 Validation: all 30 casts, MP/cooldown rejection, actual projectile damage, healing and death bounds. Comparison with spell footage: orange orb, trailing embers and warm grass tint are present; glyph-scale fire core is smaller than the high-resolution source. Fire ring/particles are used to retain the larger glow silhouette. Run normally to aim and cast manually.
+
+## 7 — Enemies and progression
+
+Data-driven Skeletons, Hollow Wisps and Grave Sentinels with idle/aggro/chase/attack AI. Damage, death/respawn, regeneration, XP/level-ups, gold, named loot and a 24-item inventory with three equipment slots. `E` collects nearby loot, `I` opens inventory, `J/K` selects, Enter equips; `R` respawns when dead.
+
+Tests verify loot/XP exactly once, collection, non-stacking equipment and respawn. Comparison with spell reference: monsters have visible names and damaged health bars; Rusty Stiletto and Old Sabatons appear as world loot. Party is still stationary at this checkpoint; coordinated movement/healing follows next.

@@ -15,8 +15,9 @@ struct Entity {
     bool alive=true,rewarded=false; Brain brain=Brain::Idle;
     float attackTimer=0,poison=0,slow=0,shield=0,deadTime=0,taunt=0,hurtTime=0,dotTimer=0;
     std::array<float,6> cooldown{};
-    std::vector<int> inventory; int equipped=-1;
+    std::vector<int> inventory; std::array<int,3> equipment{{-1,-1,-1}}; int archetype=0;
 };
+struct Loot { Vec2 pos; int item=0,gold=0; };
 struct FloatingText { Vec2 pos; std::string text; Color color=white; float life=1.4f,maxLife=1.4f; };
 inline const char* roleName(Role r) { static const char* names[]={"Warrior","Mage","Archer","Cleric","Rogue"}; return names[int(r)]; }
 }

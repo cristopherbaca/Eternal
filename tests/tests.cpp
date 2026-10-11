@@ -2,6 +2,7 @@
 #include "platform/terminal.hpp"
 #include "world/world.hpp"
 #include "combat/combat.hpp"
+#include "game.hpp"
 #include <iostream>
 #include <stdexcept>
 void check(bool ok,const char* name) { if(!ok) throw std::runtime_error(name); }
@@ -32,5 +33,10 @@ int main() { try {
         Entity e,ally; data.applyClass(e,Role(r)); e.mp=1000; ally.id=2; ally.kind=Kind::Party; ally.alive=!(r==3&&slot==4); ally.hp=50; ally.pos=e.pos;
         std::vector<Entity*> targets{&e,&ally,&mob}; check(combat.cast(e,slot,{5,12},ally.id,targets,data,a,texts).empty(),"all class abilities cast");
     }
+    Game game; auto& victim=game.mobs.front(); victim.hp=1; dealDamage(victim,10,game.texts); game.rewards(); check(!game.loot.empty()&&game.hero.xp>0,"kill yields loot and XP");
+    int xp=game.hero.xp; game.rewards(); check(game.hero.xp==xp,"kill rewarded once");
+    game.hero.pos=game.loot.front().pos; game.collectLoot(); check(!game.hero.inventory.empty(),"nearby loot collected");
+    game.equipSelected(); float power=game.hero.power,armor=game.hero.armor; game.equipSelected(); check(power==game.hero.power&&armor==game.hero.armor,"equipment cannot stack repeatedly");
+    dealDamage(game.hero,10000,game.texts); game.respawn(); check(game.hero.alive&&game.hero.hp==game.hero.maxHp,"death and respawn");
     std::cout<<"Math, projection, ASCII, lighting, framebuffer, input and world checks passed\n";
 } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; } }
