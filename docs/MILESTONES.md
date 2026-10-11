@@ -25,3 +25,9 @@ Run `./build/eternal_rpg` and `ctest --test-dir build --output-on-failure`. Refe
 Damped spring grid bends grass radially around movement and recovers over time. Reflection pass mirrors the completed scene at an irregular shoreline, dims it, applies horizontal ripple distortion and ripple rings. Run `./build/eternal_rpg --scene water` or `--scene grass`.
 
 Validation: spring displacement/recovery tests and water capture. Comparison: near-black water now contains dim canopy/player silhouettes rather than bright blue fill. Blade geometry is one terminal cell at the default zoom, so curves are approximated by changing orientation and brightness. Source footage resolves several glyphs per blade.
+
+## 5 — HUD
+
+Outlined player/party panels, actual numeric HP/MP bars, level/gold, party tab, white overhead names, conditional target health bars, floating-text renderer and responsive compact layout. Run `./build/eternal_rpg`; `--width 60 --height 20 --headless --frames 1` verifies a small terminal.
+
+Comparison: panel proportions and red/blue bars match the boss footage layout. Player and party names make the dark figures identifiable. Floating text is wired for real combat events in the next milestone; no fabricated damage/heals are shown. Boss bar rendering exists but awaits a live boss.
