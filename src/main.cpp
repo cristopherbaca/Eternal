@@ -7,13 +7,15 @@
 #include <cstdio>
 int main(int argc,char** argv) {
     try {
-        bool headless=false; int frames=0,w=200,h=60; std::string dump;
+        bool headless=false; int frames=0,w=200,h=60; std::string dump,scene="grass";
         for(int i=1;i<argc;++i) { std::string a=argv[i];
             if(a=="--headless") headless=true; else if(a=="--frames"&&i+1<argc) frames=std::stoi(argv[++i]);
+            else if(a=="--scene"&&i+1<argc) scene=argv[++i];
             else if(a=="--dump"&&i+1<argc) dump=argv[++i]; else if(a=="--width"&&i+1<argc) w=std::stoi(argv[++i]); else if(a=="--height"&&i+1<argc) h=std::stoi(argv[++i]);
             else if(a=="--help") { std::cout<<"EternalRPG | Q quit. --headless --frames N --dump frame.json\n"; return 0; }
         }
         er::Terminal terminal(!headless); er::Framebuffer frame(w,h); er::Game game;
+        game.setScene(scene);
         using Clock=std::chrono::steady_clock; auto start=Clock::now(),last=start; float ms=16.67f,accumulator=0; int count=0;
         while(er::Terminal::running()&&(!frames||count<frames)) {
             auto begin=Clock::now(); auto input=terminal.poll(); game.input(input); if(game.quit) break;

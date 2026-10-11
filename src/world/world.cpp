@@ -1,5 +1,17 @@
 #include "world/world.hpp"
 namespace er {
+void World::tick(float dt) {
+    for(auto& b:blades) { b.velocity+=(b.bend*-22-b.velocity*7)*dt; b.bend+=b.velocity*dt; }
+}
+void World::pushGrass(Vec2 p,float radius,float strength) {
+    int minx=clamp(int(p.x-radius)+90,0,180),maxx=clamp(int(p.x+radius)+90,0,180);
+    int miny=clamp(int(p.y-radius)+70,0,140),maxy=clamp(int(p.y+radius)+70,0,140);
+    for(int y=miny;y<=maxy;++y) for(int x=minx;x<=maxx;++x) {
+        Vec2 d=Vec2{float(x-90),float(y-70)}-p; float len=length(d);
+        if(len<radius) { auto& b=blades[size_t(y*181+x)]; b.velocity+=normalized(d)*(strength*(1-len/radius)); }
+    }
+}
+Vec2 World::grassBend(Vec2 p) const { int x=clamp(int(std::round(p.x))+90,0,180),y=clamp(int(std::round(p.y))+70,0,140); return blades[size_t(y*181+x)].bend; }
 World::World(uint32_t s):seed(s) {
     for(int y=-65;y<65;y+=6) for(int x=-85;x<85;x+=6) {
         Vec2 p{float(x)+noise(x,y,s)*5,float(y)+noise(y,x,s+1)*5};
@@ -33,8 +45,11 @@ void World::render(Scene& s,float time) const {
         }
         if(std::abs(p.x)<20&&p.y<-10&&p.y>-22) { s.put(x,y,p,0,{45,55,65},n>.65f?U'=':U'.',p.y-10); continue; }
         float wind=std::sin(p.x*.23f+p.y*.18f+time*1.6f)+.4f*std::sin(p.y*.8f-time*2);
+        Vec2 bend=grassBend(p); wind+=bend.x*2;
         char32_t blade=wind>.45f?U'/':wind<-.45f?U'\\':U'|'; if(n<.2f) blade=U','; else if(n>.97f) blade=U'.';
+        if(length(bend)>.55f) blade=std::abs(bend.x)>.3f?U'-':U',';
         Color color=n>.97f?Color{166,192,169}:mix({22,53,47},{65,116,84},n);
+        color=color*(1-clamp(length(bend)*.28f,0.f,.55f));
         s.put(x,y,p,0,color,blade,p.y-10);
     }
     // A shallow stone volume: back facade, side piers, front arches and crenellations.
@@ -68,6 +83,25 @@ void World::render(Scene& s,float time) const {
                 s.put(xx,yy,t.pos,v*t.height,col,glyph,t.pos.y+v*.1f,{u,-.3f,.8f});
             } else if(std::abs(u)<.13f&&v<.65f) s.put(xx,yy,t.pos,v*t.height,{73,76,67},U'|',t.pos.y,{0,-1,.3f});
         }
+    }
+}
+void World::reflections(Scene& s,float time) const {
+    // Reflect the completed scene around the projected shoreline, then distort.
+    const auto source=s.pixels; const auto& c=s.camera;
+    for(int y=0;y<c.height;++y) for(int x=0;x<c.width;++x) {
+        Vec2 target=c.unproject({float(x),float(y)}); if(!water(target)) continue;
+        float shoreY=c.project({target.x,shore(target.x)}).y,deep=y-shoreY;
+        int sy=int(2*shoreY-y),sx=x+int(std::sin(y*.7f+time*2.3f)*1.5f+std::sin(y*.19f-time)*2);
+        if(sx<0||sx>=c.width||sy<0||sy>=c.height) continue;
+        const auto& p=source[size_t(sy*c.width+sx)];
+        float fade=.36f*std::exp(-deep*.045f);
+        if((p.height>.4f||deep<3)&&p.shape!=U' ') {
+            auto reflected=p; reflected.color=mix(p.color,{30,51,74},.28f)*fade; reflected.world=target; reflected.height=0; reflected.emission=0;
+            if(int(deep+time*4)%7==0) reflected.shape=U'~';
+            s.pixels[size_t(y*c.width+x)]=reflected;
+        }
+        float ring=std::fmod(distance(target,{0,37})-time*2+1000,5.f);
+        if(ring<.12f) s.pixels[size_t(y*c.width+x)]={Color{28,43,55},U'-',target.y,target,0,{0,0,1},0};
     }
 }
 void drawCharacter(Scene& s,Vec2 p,Color color,float time,bool moving) {

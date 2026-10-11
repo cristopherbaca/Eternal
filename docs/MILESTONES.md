@@ -19,3 +19,9 @@ Comparison with forest/grass frames: conifers and rounded foliage now have diffe
 Software pixels retain depth, world position, height, normal and material color. Conversion shades with directional ambient light, warm radial sources, luminance ramp, surface edges and vignette. Torch flicker colors nearby stone glyphs. Unit tests cover projection, math, ASCII, falloff, input and diff output.
 
 Run `./build/eternal_rpg` and `ctest --test-dir build --output-on-failure`. Reference comparison: removed uniformly bright peripheral foliage and added warm stone near torches. True optical bloom is approximated by colored glyphs; terminal backgrounds stay navy. Grass displacement and reflected silhouettes remain next.
+
+## 4 — Grass and water
+
+Damped spring grid bends grass radially around movement and recovers over time. Reflection pass mirrors the completed scene at an irregular shoreline, dims it, applies horizontal ripple distortion and ripple rings. Run `./build/eternal_rpg --scene water` or `--scene grass`.
+
+Validation: spring displacement/recovery tests and water capture. Comparison: near-black water now contains dim canopy/player silhouettes rather than bright blue fill. Blade geometry is one terminal cell at the default zoom, so curves are approximated by changing orientation and brightness. Source footage resolves several glyphs per blade.

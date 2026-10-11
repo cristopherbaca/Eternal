@@ -6,6 +6,7 @@ class Game {
 public:
     World world; Camera camera; Vec2 player{0,12},velocity{},aim{5,12}; float time=0; bool quit=false;
     explicit Game(uint32_t seed=42):world(seed) {}
+    void setScene(const std::string& name);
     void input(const Input& in); void tick(float dt); void render(Framebuffer& f,float ms);
 private: float movementTime=0; Scene scene;
 };

@@ -18,5 +18,7 @@ int main() { try {
     Framebuffer f(20,10); check(!f.diff().empty()&&f.diff().empty(),"diff only changes"); f.put(1,1,U'^'); check(!f.diff().empty(),"changed cell emitted");
     InputParser parser; check(parser.feed("\x1b[<0;12;").keys.empty(),"split mouse input"); auto in=parser.feed("8Mw"); check(in.click&&in.mouseX==11&&in.mouseY==7&&in.keys=="w","mouse continuation");
     World a(42),b(42); check(a.trees.size()==b.trees.size(),"world repeatability"); check(a.blocked({90,0}),"world boundary");
+    a.pushGrass({0,12},3,10); a.tick(1.f/60); check(length(a.grassBend({1,12}))>0,"grass deflects");
+    for(int i=0;i<600;++i) a.tick(1.f/60); check(length(a.grassBend({1,12}))<.001f,"grass spring recovers");
     std::cout<<"Math, projection, ASCII, lighting, framebuffer, input and world checks passed\n";
 } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; } }
