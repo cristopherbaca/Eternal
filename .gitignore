@@ -1,0 +1,5 @@
+/build*/
+/docs/reference/*.png
+*.frame.json
+.DS_Store
+__pycache__/
