@@ -34,6 +34,10 @@ void fatalSignal(int sig) { restoreWindows(); std::_Exit(128+sig); }
 #endif
 }
 Input InputParser::feed(const std::string& bytes) {
+    if(pending=="\x1b"&&bytes.empty()&&std::chrono::steady_clock::now()-escapeSince>std::chrono::milliseconds(30)) {
+        pending.clear(); Input escape; escape.keys=char(27); return escape;
+    }
+    if(pending.empty()&&!bytes.empty()) escapeSince=std::chrono::steady_clock::now();
     pending+=bytes; Input result; size_t i=0;
     while(i<pending.size()) {
         if(pending[i]!='\x1b') { result.keys+=pending[i++]; continue; }

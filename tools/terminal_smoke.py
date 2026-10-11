@@ -29,7 +29,8 @@ def run(extra, end_signal=None, exercise=False, slow_reader=False, acknowledge=F
     environment.pop("TERM_PROGRAM", None)
     if acknowledge:
         environment["TERM_PROGRAM"] = "Apple_Terminal"
-    process = subprocess.Popen([str(args.executable.resolve())] + extra, stdin=slave, stdout=slave, stderr=slave, close_fds=True, env=environment)
+    workspace = tempfile.TemporaryDirectory(prefix="eternal-session-")
+    process = subprocess.Popen([str(args.executable.resolve())] + extra, stdin=slave, stdout=slave, stderr=slave, close_fds=True, env=environment, cwd=workspace.name)
     start = time.monotonic()
     tail = b""
     entered = restored = False
@@ -52,7 +53,7 @@ def run(extra, end_signal=None, exercise=False, slow_reader=False, acknowledge=F
             if elapsed > 0.15 and not sent:
                 sent = True
                 if exercise:
-                    os.write(master, b"wd\x1b[<0;120;30M1")
+                    os.write(master, b"\rwd\x1b[<0;120;30M1")
                 if end_signal:
                     process.send_signal(end_signal)
             if exercise and elapsed > 0.3 and not resized:
@@ -112,6 +113,7 @@ def run(extra, end_signal=None, exercise=False, slow_reader=False, acknowledge=F
             process.wait(timeout=3)
         os.close(master)
         os.close(slave)
+        workspace.cleanup()
 
 with tempfile.TemporaryDirectory(prefix="eternal-backpressure-") as directory:
     stats = Path(directory) / "metrics.json"

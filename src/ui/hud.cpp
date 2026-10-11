@@ -34,7 +34,7 @@ void hud(Framebuffer& f,const Entity& hero,const std::vector<Entity>& party,cons
             box(f,1,y,w,5); f.text(3,y+1,e.name+" - "+std::to_string(e.level));
             f.text(3,y+2,"HP"); bar(f,6,y+2,10,e.hp,e.maxHp,{174,73,66}); f.text(17,y+2,std::to_string(int(e.hp))+"/"+std::to_string(int(e.maxHp)));
             f.text(3,y+3,"MP"); bar(f,6,y+3,10,e.mp,e.maxMp,{65,111,168}); f.text(17,y+3,std::to_string(int(e.mp))+"/"+std::to_string(int(e.maxMp))); y+=5;
-        } f.text(2,y,"party",white);
+        } if(!party.empty()) f.text(2,y,"party",white);
     }
     if(boss&&boss->alive) {
         int x=f.width>110?34:2,w=std::min(90,f.width-x-3),phase=boss->hp/boss->maxHp>.66f?1:boss->hp/boss->maxHp>.33f?2:3;

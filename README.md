@@ -1,91 +1,82 @@
 # EternalRPG
 
-A playable C++17 terminal RPG with a procedural ASCII world, five classes, AI companions, a three-phase Dragon encounter and optional cooperative TCP multiplayer. Built in ten compiling milestones from the five supplied reference recordings.
+A single-player ASCII RPG in C++17 with a seed-based, streamed procedural world. Explore Ashenmere, Frostwood, Ember Hills, Reedlands and Dragon Hollow; defeat enemies, discover landmarks, earn XP and fight the Dragon. The networking client, server and multiplayer source have been removed.
 
-![Dragon encounter at 200×60](docs/screenshots/10-dragon.png)
+![Single-player introduction](docs/screenshots/11-single-player-title.png)
 
-Build with CMake 3.16+ and a C++17 compiler. No ncurses, game engine, package manager or runtime graphics library is required.
-
-For VS Code's C/C++ extension, configure CMake first: the included editor configuration reads `build/compile_commands.json` for the compiler's actual C++17 settings. Build the CMake project rather than compiling `game.cpp` alone, since it depends on the other game modules.
-
-On this Mac, open VS Code's **Run and Debug** sidebar, select **EternalRPG — External Terminal**, and click the green play button. It builds the whole project and opens the game in macOS Terminal. **Run → Run Without Debugging** uses the same configuration. The separate Code Runner **Run Code** button runs individual files and does not use this launch configuration. The build task currently points to the CMake installation in `/private/tmp/eternalrpg-build-tools`; update its macOS command if that temporary installation is removed.
+On this Mac, select **EternalRPG — GPU Window (recommended)** in VS Code's **Run and Debug** dropdown and click **▶**. Press **Enter** on the introduction screen to start. The original external-terminal launch remains available.
 
 ```sh
 cmake -B build
 cmake --build build
-./build/eternal_rpg
+./build/eternal_rpg --window  # native Metal window, macOS
+./build/eternal_rpg           # terminal mode
 ```
 
-On Windows, use a Developer PowerShell with Visual Studio's C++ tools, build with `cmake --build build --config Release`, then run `.\build\Release\eternal_rpg.exe` in a VT/truecolor terminal. POSIX terminal and socket backends cover Linux and macOS; Windows uses console APIs and Winsock. Local validation was on macOS ARM64. CI is configured for all three platforms; Linux/Windows results have not been run in this workspace.
+The game, world, menus, settings and progression are C++. The macOS window uses a small Objective-C++ bridge to Apple's AppKit/Metal APIs; it has no Python, JavaScript or game-engine runtime. Terminal backends are provided for macOS, Linux and Windows. Only macOS has been tested locally; CI is configured for all three. On Windows, use `cmake --build build --config Release` and run `build\Release\eternal_rpg.exe`.
 
-Use a dark truecolor terminal, a monospace font and about **200 columns × 60 rows**. A small font and more rows provide finer geometry; the camera scales with terminal height. For finer detail, maximize the external terminal and use **Command-minus** to shrink the font; aim for **320×100** cells (Menlo around 8–9 pt). The renderer automatically uses the extra rows and columns. Increasing `--width` does not resize an interactive terminal; that option is for headless captures. Compact HUD mode activates below 80 columns or 28 rows. Below 40×16, the game asks for more space. Presentation targets 60 FPS by default; `--fps 30` reduces terminal output further. Use `--fps 120` only if your terminal keeps up. Simulation remains 60 Hz.
+Testing powers are **on by default** for easy exploration: invulnerability, unlimited mana, 12× ability damage and 0.12-second ability cooldowns. Turn them off in Settings for normal combat, or launch with `--normal`. The title shows which mode is active. Normal play starts at level 1. Testing mode doesn't replace your class or level and can be toggled during a session.
 
 | Control | Action |
 | --- | --- |
-| W A S D | Move; hold for keyboard repeat |
-| Mouse / arrow keys | Aim the white crosshair |
-| Left click / Space | Primary ability |
-| 1–6 | Cast hotbar ability |
-| Tab | Cycle nearby enemies/allies, including fallen allies |
-| C, then 1–5 | Choose Warrior, Mage, Archer, Cleric or Rogue outside combat |
-| E | Collect loot within four world units |
-| I | Inventory and equipment |
-| J / K, Enter | Select/equip an inventory item |
-| R | Respawn when dead, costing 25 gold |
-| B | Travel to the Dragon arena |
-| + / - / mouse wheel | Zoom |
+| Enter | Start the adventure / choose a menu item |
+| Esc / P | Pause, resume, or return from settings |
+| W/S or arrows in menus | Select an option |
+| A/D or Left/Right in Settings | Change selected setting |
+| WASD | Move |
+| Mouse / arrow keys in game | Aim |
+| Click / Space | Primary ability |
+| 1–6 | Cast abilities |
+| Tab | Cycle targets |
+| M | World map |
+| T on map | With testing powers enabled, jump to new procedural wilderness |
+| 1–5 on map | Travel to discovered landmarks; testing mode unlocks all destinations |
+| I, then J/K and Enter | Open inventory, select and equip |
+| E | Collect nearby loot |
+| C, then 1–5 | Change class outside combat (anytime with testing powers) |
+| + / - / scroll | Camera zoom |
+| B | Travel to Dragon arena |
+| R | Respawn after death |
 | H | Controls overlay |
-| Q / Ctrl-C | Exit and restore the terminal |
-| Enter (online) | Chat; `/who`, `/invite ID`, `/accept`; Ctrl-G cancels typing |
+| Q | Exit |
 
-Standard terminal input has no portable key-release event. Movement uses a short renewal window and the terminal's keyboard repeat. Arrow keys adjust aim, so WASD handles movement.
+Pause offers **Resume, Settings, World Map, Return to Title, and Exit**. Menus freeze combat, AI, cooldowns and world time. Returning to title keeps the current session.
 
-The VS Code launch configuration uses a 30-FPS presentation target for the dense external-terminal view. Input polling and simulation continue at 60 Hz between presentations. On Apple Terminal, a cursor-position acknowledgement gates the next frame to limit output backlog; terminals that do not reply within 250 ms fall back to ordinary paced output. The HUD's **Sent fps** measures submissions, not the terminal emulator's visible refresh rate. Acknowledgements indicate that escape sequences were processed, not that pixels were painted. Smaller fonts add detail but also increase the amount of terminal drawing work.
+Settings include testing powers, optional AI companions (off by default), frame-rate target, native-window detail, camera zoom, name labels, control hints and class. Settings are saved on a normal exit to `.eternalrpg-settings.txt` in the working directory. Character/world progress is currently **session-only**: exiting starts a fresh adventure next time. Class selection is unavailable during normal combat. Native detail changes glyph resolution; terminal mode takes its grid size from the terminal window.
 
-Try the reference scenes:
+The world is generated from **seed + coordinates**, using smooth value noise for biomes/lakes and coordinate hashes for trees and enemies. The old 500×500 boundary is gone. Terrain streams in 64×64 chunks; only a 7×7 neighborhood is cached, so exploration does not keep expanding memory usage. Unloaded terrain regenerates identically for the same seed and mod set. The five starting landmarks and ruins remain near the origin; the frontier continues beyond them with forests, grassland, ember hills, wetlands, lakes and roads.
+
+Enemy spawns are generated around the current chunk. Distant encounters unload, new regions create new encounters, and defeated enemies respawn after a configurable interval. At most 100 mobs are active at once. Kill cooldowns survive leaving and returning during the cooldown, but distant surviving enemies reset when regenerated. Dropped loot beyond 200 units is discarded. This provides continuing encounters rather than a finite initial enemy population.
+
+This is an effectively large procedural world, not mathematical infinity: the current float-coordinate implementation supports ±1,000,000 world units per axis. There is no voxel building/mining system. Persistent world edits and cross-session saves are not implemented. **M → T** jumps farther into the generated frontier in testing mode; **M → 1** returns home. The map now follows your position instead of displaying the entire world.
+
+Landmarks award 150 discovery XP once per session. Enemies grow stronger with distance (enemy level caps at 100) and award level-scaled XP. Each player level costs `100 + 25 × current level` XP and grants **+8 maximum HP and +2 power**. These bonuses survive class changes.
+
+Mods are loaded from `mods/`. Add a folder name to [`mods/enabled.txt`](mods/enabled.txt) and restart, or run:
 
 ```sh
-./build/eternal_rpg --scene water
-./build/eternal_rpg --scene forest
-./build/eternal_rpg --scene ruins
-./build/eternal_rpg --scene boss --class Cleric
-./build/eternal_rpg --scene boss --demo
+./build/eternal_rpg --window --mod wild_frontier
+./build/eternal_rpg --list-mods
+./build/eternal_rpg --window --no-mods
+./build/eternal_rpg --window --mod wild_frontier --position 4096 -4096
 ```
 
-`--demo` uses the same abilities and resource rules, aims at enemies and dodges ground hazards. Normal play starts as Senje, a Mage, with Stasia_apk (healer), Jade (tank) and Elowen (mage). Defeat enemies for XP, loot and gold; equip weapons, boots and charms. The Dragon has red 1.5-second telegraphs, fire breath, persistent fire, wing sweeps, summoned skeletons and an enrage timer. A wipe resets the encounter; victory awards gold, Dragonfang and Emberguard Boots.
+The included **Wild Frontier** example is disabled by default. It changes forest/lake generation and enemy density, and adds a Frontier Stalker. Mods can override generation parameters and the existing content tables. These are declarative data packs, not arbitrary executable plugins or scripts. See the [mod creation guide](docs/MODS.md) for the format, load order, supported fields and limits.
 
-![Water and reflected silhouettes](docs/screenshots/10-water.png)
+The Metal backend renders the same RGB glyph framebuffer using a cached Menlo atlas and one GPU draw call. It avoids ANSI terminal output and handles held movement keys and key releases directly. Use **Comfort**, **Detailed**, or **Dense** in Settings to balance readable text against glyph density. The displayed `Sent fps` measures submissions, not verified display scanout.
 
-For multiplayer, open separate terminals:
-
-```sh
-./build/game_server --port 7777
-./build/eternal_rpg --connect 127.0.0.1:7777 --name Senje
-./build/eternal_rpg --connect 127.0.0.1:7777 --name Elowen --class Cleric
-```
-
-The server controls movement, combat, loot and progression, sending snapshots at 20 Hz. Clients interpolate positions with 100 ms of delay. Eight players can share a session; chat invitations establish party membership. The default listener is loopback. See [network setup and protocol](docs/NETWORK.md) for LAN hosting.
-
-The world, inventory and server are session-based. There is no save file, persistent realm, account system, matchmaking or Internet hosting service. This is a playable cooperative prototype, with simplified character/dragon geometry. The source videos have far more glyphs per object; 200×60 cannot reproduce that detail or optical bloom exactly. All world objects use colored foreground glyphs on the same navy background. Spell glow is light applied to those glyphs.
-
-![More geometry at 320×100](docs/screenshots/10-dense-ruins.png)
-
-Validation and captures:
+Terminal mode needs a truecolor terminal and a monospace font. About 200×60 cells is a useful starting point. More rows/columns improve detail but increase terminal work; 320×100 is better suited to the GPU window. Terminal movement depends on keyboard repeat because portable terminals do not report key releases.
 
 ```sh
+./build/eternal_rpg --window --scene boss --demo
+./build/eternal_rpg --normal --scene forest
+./build/eternal_rpg --benchmark --scene boss --demo --frames 600 --width 320 --height 100
 ctest --test-dir build --output-on-failure
-./build/eternal_rpg --benchmark --scene boss --demo --frames 1800 --stats metrics.json
-./build/eternal_rpg --headless --scene water --frames 120 --dump water.frame.json
-python3 tools/network_smoke.py build
-python3 tools/terminal_smoke.py build/eternal_rpg  # POSIX only
+python3 tools/terminal_smoke.py build/eternal_rpg  # optional POSIX developer check
 ```
 
-Headless mode advances one fixed simulation step per frame, without pacing. It defaults to 600 frames. Its FPS measures CPU/ANSI-encoding throughput, not a terminal emulator's drawing speed. `--stats` records wall-clock FPS, mean/p95 work time and output bytes. `--dump` exports every real framebuffer cell as JSON. `tools/media.m` is optional macOS tooling for extracting reference frames, rendering captures with Menlo and making side-by-side comparison sheets; it is not used by the game.
+`--demo` and headless runs skip the introduction and saved preferences for reproducibility. Use `--seed`, `--name`, `--class`, `--fps`, `--scene` and `--data` for startup overrides. An explicit class/FPS overrides the remembered setting. Data tables in `data/` define five classes, 30 abilities, enemies, items and boss phases. Run `--help` for options. Python and the optional macOS capture tool are development utilities, not game dependencies.
 
-Tests cover math/projection, ASCII/lighting, input framing, combat costs and effects, progression, equipment, boss phases/wipes/rewards, deterministic replay and snapshot parsing. The network integration test additionally launches real clients. Python is optional and used only for the integration scripts. See [validation results](docs/VALIDATION.md) and the [milestone comparison log](docs/MILESTONES.md).
+See [validation](docs/VALIDATION.md) and the [historical milestones](docs/MILESTONES.md). Original reference screenshots in that log predate the solo conversion. The visuals still approximate the reference videos; this remains a playable prototype rather than a finished commercial RPG.
 
-Data lives in `data/*.txt`: classes, all 30 abilities, enemies, items, boss stats and phases. Comments describe each format. Use `--seed N`, `--name NAME` or `--data DIR` to customize a session. Data is loaded from `./data` when present, with the source data path as a fallback. Run `--help` for all options.
-
-Source modules: `platform/` terminal/input, `renderer/` cell and depth buffers, `ascii_conversion/` light/material conversion, `world/` terrain/grass/reflections, `entities/`, `combat/`, `ai/`, `ui/`, `net/` and `assets/`. Simulation never reads wall-clock time; the main loop accumulates elapsed time and executes fixed ticks separately from rendering.
-
-If macOS reports an SDK/toolchain mismatch, select a compatible installed SDK when configuring. This workspace used `-DCMAKE_OSX_SYSROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk` because its default SDK was newer than its compiler. The project does not require that specific SDK on other machines.
+This workspace uses a compatible macOS 26.5 SDK (`-DCMAKE_OSX_SYSROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk`). The VS Code build task currently points at `/private/tmp/eternalrpg-build-tools/cmake/data/bin/cmake`; update its command if that temporary installation is removed. CMake exports a compilation database used by the included VS Code C/C++ configuration. Use the whole-project launch, not Code Runner's single-file Run Code button.

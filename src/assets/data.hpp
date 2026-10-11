@@ -13,7 +13,7 @@ public:
     std::array<ClassDef,5> classes{}; std::array<std::array<Ability,6>,5> abilities{};
     std::vector<EnemyDef> enemies; std::vector<ItemDef> items;
     BossDef boss; std::vector<BossPhase> phases;
-    explicit Data(const std::filesystem::path& path={});
+    explicit Data(const std::filesystem::path& path={},const std::vector<std::filesystem::path>& overlays={});
     void applyClass(Entity& e,Role role) const;
 };
 Role parseRole(const std::string& name);

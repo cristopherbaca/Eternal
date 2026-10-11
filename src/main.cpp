@@ -1,5 +1,7 @@
 #include "game.hpp"
-#include "net/client.hpp"
+#ifdef __APPLE__
+#include "platform/window.hpp"
+#endif
 #include <chrono>
 #include <fstream>
 #include <iomanip>
@@ -10,22 +12,30 @@
 
 int main(int argc,char** argv) {
     try {
-        bool headless=false,demo=false;
+        bool headless=false,demo=false,native=false,normal=false,fpsExplicit=false,classExplicit=false,noMods=false,listMods=false,positionSet=false;
+        er::Vec2 startPosition{};
         int frames=0,w=200,h=60,fps=60;
         uint32_t seed=42;
-        std::string dump,stats,scene="grass",className="Mage",dataPath,connect,name="Senje";
+        std::string dump,stats,scene="grass",className="Mage",dataPath,modsPath,name="Senje";
+        std::vector<std::string> modIds;
         for(int i=1;i<argc;++i) {
             std::string arg=argv[i];
             auto value=[&]() -> std::string { if(i+1>=argc) throw std::runtime_error("Missing value for "+arg); return argv[++i]; };
             if(arg=="--headless"||arg=="--benchmark") headless=true;
+            else if(arg=="--window") native=true;
             else if(arg=="--demo") demo=true;
             else if(arg=="--frames") frames=std::stoi(value());
-            else if(arg=="--fps") fps=std::stoi(value());
+            else if(arg=="--fps") { fps=std::stoi(value()); fpsExplicit=true; }
             else if(arg=="--scene") scene=value();
-            else if(arg=="--connect") connect=value();
-            else if(arg=="--name") name=er::net::safeText(value(),20);
+            else if(arg=="--normal") normal=true;
+            else if(arg=="--name") name=value().substr(0,20);
             else if(arg=="--seed") seed=uint32_t(std::stoul(value()));
-            else if(arg=="--class") className=value();
+            else if(arg=="--class") { className=value(); classExplicit=true; }
+            else if(arg=="--position") { startPosition.x=std::stof(value()); startPosition.y=std::stof(value()); positionSet=true; }
+            else if(arg=="--mod") modIds.push_back(value());
+            else if(arg=="--mods-dir") modsPath=value();
+            else if(arg=="--no-mods") noMods=true;
+            else if(arg=="--list-mods") listMods=true;
             else if(arg=="--data") dataPath=value();
             else if(arg=="--dump") dump=value();
             else if(arg=="--stats") stats=value();
@@ -34,10 +44,12 @@ int main(int argc,char** argv) {
             else if(arg=="--help") {
                 std::cout<<"EternalRPG - truecolor terminal RPG\n"
                     "WASD move, mouse/arrows aim, click/Space primary, 1-6 abilities\n"
-                    "Tab target, C class, I inventory, E loot, B boss, R respawn, H help, Q quit\n"
+                    "Tab target, C class, I inventory, E loot, B boss, R respawn, M map, Esc/P pause, Q quit\n"
                     "--scene grass|forest|ruins|water|boss  --class Warrior|Mage|Archer|Cleric|Rogue\n"
+                    "--window (macOS Metal ASCII window)\n"
                     "--seed N  --name NAME  --fps 60  --data DIR  --demo\n"
-                    "--connect HOST:PORT (Enter: chat, /who, /invite ID, /accept)\n"
+                    "--mod ID --mods-dir DIR --no-mods --list-mods --position X Y\n"
+                    "--normal disables powerful testing mode\n"
                     "--headless --frames N --width 200 --height 60 --dump frame.json --stats metrics.json\n"
                     "--benchmark implies --headless; headless defaults to 600 deterministic ticks.\n";
                 return 0;
@@ -47,15 +59,41 @@ int main(int argc,char** argv) {
             throw std::runtime_error("Invalid dimensions/frame limit/FPS (width 1..500, height 1..180, FPS 20..240)");
         if(scene!="grass"&&scene!="forest"&&scene!="ruins"&&scene!="water"&&scene!="boss")
             throw std::runtime_error("Unknown scene: "+scene);
+        if(positionSet&&(!std::isfinite(startPosition.x)||!std::isfinite(startPosition.y)||std::abs(startPosition.x)>999000||std::abs(startPosition.y)>999000))
+            throw std::runtime_error("--position must be finite and within +/-999000 world units");
+        auto mods=er::loadMods(modsPath,modIds,noMods);
+        if(listMods) {
+            if(mods.names.empty()) std::cout<<"No active mods\n";
+            for(const auto& name:mods.names) std::cout<<name<<'\n';
+            return 0;
+        }
         if(headless&&!frames) frames=600;
-        er::Terminal terminal(!headless);
+        if(native&&headless) throw std::runtime_error("--window and --headless cannot be combined");
+#ifdef __APPLE__
+        std::unique_ptr<er::Window> window;
+        if(native) window=std::make_unique<er::Window>();
+#else
+        if(native) throw std::runtime_error("--window currently requires macOS");
+#endif
+        er::Terminal terminal(!headless&&!native);
         er::Framebuffer frame(w,h);
-        er::Game game(seed,dataPath);
+        er::Game game(seed,dataPath,mods);
         game.data.applyClass(game.hero,er::parseRole(className));
         game.setScene(scene);
-        game.hero.name=name;
-        std::unique_ptr<er::net::Client> client;
-        if(!connect.empty()) client=std::make_unique<er::net::Client>(connect,name,game.hero.role);
+        if(positionSet) {
+            game.hero.pos=startPosition; game.camera.center=startPosition; game.aim=startPosition+er::Vec2{5,0};
+            game.world.focus(startPosition); game.streamEnemies();
+        }
+        name.erase(std::remove_if(name.begin(),name.end(),[](unsigned char c){return c<32||c>126;}),name.end());
+        game.hero.name=name.empty()?"Senje":name;
+        game.presentationFps=fps;
+        game.setTesting(!normal);
+        if(!headless&&!demo) game.loadSettings();
+        if(normal) game.setTesting(false);
+        if(fpsExplicit) game.presentationFps=fps;
+        if(classExplicit) game.data.applyClass(game.hero,er::parseRole(className));
+        fps=game.presentationFps;
+        game.screen=(headless||demo)?er::Screen::Playing:er::Screen::Title;
         using Clock=std::chrono::steady_clock;
         auto start=Clock::now(),last=start,lastPresented=start,nextPresentation=start;
         float frameMs=1000.f/fps,accumulator=0,nextShot=0,nextArea=1.5f;
@@ -67,8 +105,14 @@ int main(int argc,char** argv) {
         while(er::Terminal::running()&&(!frames||count<frames)) {
             auto begin=Clock::now();
             auto input=terminal.poll();
-            if(client) client->input(input,game); else game.input(input);
+#ifdef __APPLE__
+            if(window) input=window->poll();
+#endif
+            game.input(input);
             if(game.quit) break;
+            fps=game.presentationFps;
+            period=std::chrono::microseconds(1000000/fps);
+            inputPeriod=std::chrono::microseconds(1000000/std::max(60,fps));
             if(demo) {
                 er::Input action;
                 if(game.time>=nextShot) { action.keys+='1'; nextShot=game.time+.75f; }
@@ -89,16 +133,19 @@ int main(int argc,char** argv) {
                         best=er::distance(e.pos,game.hero.pos); game.aim=e.pos; game.hero.target=e.id;
                     }
                 }
-                if(client) client->input(action,game); else game.input(action);
+                game.input(action);
             }
             if(!headless) {
-                auto [x,y]=terminal.size(); x=er::clamp(x,1,500); y=er::clamp(y,1,180);
+                auto dimensions=terminal.size();
+#ifdef __APPLE__
+                if(window) dimensions=window->size(game.detail);
+#endif
+                auto [x,y]=dimensions; x=er::clamp(x,1,500); y=er::clamp(y,1,180);
                 if(x!=frame.width||y!=frame.height) frame.resize(x,y);
             }
             float elapsed=std::min(.25f,std::chrono::duration<float>(begin-last).count());
             last=begin;
-            if(client) client->update(elapsed,game);
-            else {
+            {
                 accumulator+=headless?1.f/60:elapsed;
                 while(accumulator>=1.f/60) { game.tick(1.f/60); accumulator-=1.f/60; }
             }
@@ -108,21 +155,29 @@ int main(int argc,char** argv) {
                     frameMs=frameMs*.9f+interval*.1f;
                 }
                 game.render(frame,frameMs);
-                auto output=frame.diff();
-                bytes+=output.size();
-                terminal.present(output);
+                bool submitted=true;
+#ifdef __APPLE__
+                if(window) submitted=window->present(frame);
+                else
+#endif
+                {
+                    auto output=frame.diff();
+                    bytes+=output.size();
+                    terminal.present(output);
+                }
                 lastPresented=begin;
                 // Keep the target cadence, but never burst queued old frames.
                 nextPresentation=std::max(nextPresentation+period,Clock::now());
-                ++count;
+                if(submitted) ++count;
                 workTimes.push_back(std::chrono::duration<double,std::milli>(Clock::now()-begin).count());
             }
-            if(!headless||client) {
+            if(!headless) {
                 auto deadline=begin+inputPeriod;
                 std::this_thread::sleep_until(deadline-std::chrono::microseconds(300));
                 while(Clock::now()<deadline) std::this_thread::yield();
             }
         }
+        if(!headless&&!demo&&!game.saveSettings()) std::cerr<<"Could not save settings in the working directory\n";
         double seconds=std::chrono::duration<double>(Clock::now()-start).count();
         double mean=workTimes.empty()?0:std::accumulate(workTimes.begin(),workTimes.end(),0.0)/workTimes.size();
         std::sort(workTimes.begin(),workTimes.end());

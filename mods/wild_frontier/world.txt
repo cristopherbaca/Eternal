@@ -1,0 +1,8 @@
+# Only fields present here override the defaults.
+tree_density 0.78
+lake_threshold 0.34
+biome_scale 240
+enemies_per_chunk 5
+respawn_seconds 25
+level_distance 160
+seed_salt 731

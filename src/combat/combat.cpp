@@ -3,7 +3,7 @@ namespace er {
 bool hostile(const Entity& a,const Entity& b) { auto enemy=[](const Entity& e){return e.kind==Kind::Mob||e.kind==Kind::Boss;}; return enemy(a)!=enemy(b); }
 float damageAfterArmor(float p,float armor) { return std::max(0.f,p)*100/(100+std::max(0.f,armor)); }
 float dealDamage(Entity& e,float p,std::vector<FloatingText>& texts) {
-    if(!e.alive) return 0;
+    if(!e.alive||e.testing) return 0;
     float dealt=std::min(e.hp,damageAfterArmor(p,e.armor)*(e.shield>0?.5f:1.f)); e.hp-=dealt; e.hurtTime=5;
     if(dealt>=1&&texts.size()<200) texts.push_back({e.pos,std::to_string(int(std::round(dealt))),e.kind==Kind::Player?Color{242,91,80}:Color{240,224,205}});
     if(e.hp<=0) { e.hp=0; e.alive=false; e.brain=Brain::Dead; e.deadTime=0; } return dealt;
@@ -20,15 +20,16 @@ std::string Combat::cast(Entity& c,int slot,Vec2 aim,int target,const std::vecto
     if(slot<0||slot>=6||!c.alive) return "Cannot cast while fallen";
     const auto& a=data.abilities[size_t(c.role)][size_t(slot)];
     if(c.cooldown[size_t(slot)]>0) return a.name+" is cooling down";
-    if(c.mp<a.cost) return "Not enough MP";
+    if(!c.testing&&c.mp<a.cost) return "Not enough MP";
     Entity* selected=nullptr; for(auto* e:es) if(e->id==target) selected=e;
     Vec2 dir=normalized(aim-c.pos); if(length(dir)<.1f) dir=c.facing;
     aim=c.pos+dir*std::min(distance(c.pos,aim),a.range); c.facing=dir;
     const auto& effect=a.effect;
     if(effect=="resurrect"&&(!selected||selected->alive||hostile(c,*selected)||distance(c.pos,selected->pos)>a.range)) return "Target a fallen ally with Tab";
     if(effect=="heal"&&selected&&!hostile(c,*selected)&&(!selected->alive||distance(c.pos,selected->pos)>a.range)) return "Ally is fallen or out of range";
-    c.mp-=a.cost; c.cooldown[size_t(slot)]=a.cooldown;
-    float power=a.power*(.85f+c.power/200);
+    if(!c.testing) c.mp-=a.cost;
+    c.cooldown[size_t(slot)]=c.testing?.12f:a.cooldown;
+    float power=a.power*(.85f+c.power/200)*(c.testing?12.f:1.f);
     if(effect=="heal") { Entity* e=selected&&!hostile(c,*selected)?selected:&c; heal(*e,a.power,texts); burst(e->pos,{103,232,139},16,2); }
     else if(effect=="resurrect") { selected->alive=true; selected->hp=selected->maxHp*.5f; selected->mp=selected->maxMp*.3f; selected->brain=Brain::Idle; burst(selected->pos,{155,255,183},40,5); }
     else if(effect=="mana") { c.mp=std::min(c.maxMp,c.mp+a.power); burst(c.pos,{112,160,255},22,3); }

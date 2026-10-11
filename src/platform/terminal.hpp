@@ -8,8 +8,8 @@
 #include <termios.h>
 #endif
 namespace er {
-struct Input { std::string keys; int mouseX=-1,mouseY=-1,scroll=0; bool click=false,cursorReport=false; };
-class InputParser { public: Input feed(const std::string& bytes); private: std::string pending; };
+struct Input { std::string keys,movementKeys; int mouseX=-1,mouseY=-1,scroll=0; bool click=false,cursorReport=false,heldMovement=false; };
+class InputParser { public: Input feed(const std::string& bytes); private: std::string pending; std::chrono::steady_clock::time_point escapeSince{}; };
 class Terminal {
 public:
     explicit Terminal(bool enable=true); ~Terminal();

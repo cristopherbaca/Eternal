@@ -1,4 +1,6 @@
-# Implementation log
+# Historical implementation log
+
+The original multiplayer milestone below was later removed at the user's request. The current game is offline single-player with menus, testing powers and expanded exploration; see README.md.
 
 Implementation checkpoints are recorded in git. Screenshots come from the actual framebuffer with a monospace font.
 
@@ -54,7 +56,7 @@ Validation: phase transitions, delayed telegraphs, wipe reset and victory reward
 
 Optional authoritative TCP server, 60 Hz simulation/20 Hz snapshots, position interpolation, eight players, replicated combat/AI/loot, chat and accepted party invitations. Run `./build/game_server`, then `./build/eternal_rpg --connect 127.0.0.1:7777 --name Senje` in another terminal. Enter opens chat; `/who`, `/invite ID`, `/accept` manage a party.
 
-Validation: real loopback server with two protocol peers and two terminal clients; checked movement timeout, MP authority, chat delivery, group membership and rendering. Snapshot round-trip/truncation tests pass. Visual comparison: online and offline use the same renderer/HUD; network effects are sampled to bound bandwidth, so dense particle trails are less smooth. This is a cooperative session prototype, not a persistent MMO service. See [network details](NETWORK.md).
+Validation: real loopback server with two protocol peers and two terminal clients; checked movement timeout, MP authority, chat delivery, group membership and rendering. Snapshot round-trip/truncation tests pass. Visual comparison: online and offline use the same renderer/HUD; network effects are sampled to bound bandwidth, so dense particle trails are less smooth. This is a cooperative session prototype, not a persistent MMO service. The networking source and server target have since been removed.
 
 ## 10 — Polish and profiling
 

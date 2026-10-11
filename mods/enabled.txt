@@ -1,0 +1,3 @@
+# One mod folder per line, loaded from top to bottom. Later packs override earlier ones.
+# Uncomment the next line to enable the included example, then restart the game.
+# wild_frontier

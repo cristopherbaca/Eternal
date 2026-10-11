@@ -4,7 +4,7 @@ namespace er {
 void tickMobs(Game& g,float dt) {
     auto es=g.entities();
     for(auto& mob:g.mobs) {
-        if(!mob.alive) continue;
+        if(!mob.alive||distance(mob.pos,g.hero.pos)>55) continue;
         const auto& def=g.data.enemies[size_t(mob.archetype)]; Entity* target=nullptr; float best=def.aggro;
         if(mob.taunt>0) for(auto* e:es) if(e->id==mob.target&&e->alive) target=e;
         if(!target) for(auto* e:es) if(e->alive&&hostile(mob,*e)) { float d=distance(mob.pos,e->pos); if(d<best) { target=e; best=d; } }
