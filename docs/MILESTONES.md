@@ -49,3 +49,9 @@ Tests verify loot/XP exactly once, collection, non-stacking equipment and respaw
 Healer triages/raises allies, warrior taunts/tanks, mage casts at range; all follow and avoid hostile areas. Large red-brown dragon with flapping wings, three data-driven phases, delayed 1.5s red rings, cone breath, burning patches, wing sweep, adds, enrage, wipe reset and victory equipment/gold. `B` travels to the arena; `./build/eternal_rpg --scene boss --demo` previews the fight.
 
 Validation: phase transitions, delayed telegraphs, wipe reset and victory reward tests. Comparison with boss recording: boss/party HUD, broad wing silhouette, warm spell ground and real green heal numbers are present. At 200×60 wings are a simplified procedural silhouette and source footage has far more detail. Timings and damage are tunable in `data/boss*.txt`.
+
+## 9 — Multiplayer
+
+Optional authoritative TCP server, 60 Hz simulation/20 Hz snapshots, position interpolation, eight players, replicated combat/AI/loot, chat and accepted party invitations. Run `./build/game_server`, then `./build/eternal_rpg --connect 127.0.0.1:7777 --name Senje` in another terminal. Enter opens chat; `/who`, `/invite ID`, `/accept` manage a party.
+
+Validation: real loopback server with two protocol peers and two terminal clients; checked movement timeout, MP authority, chat delivery, group membership and rendering. Snapshot round-trip/truncation tests pass. Visual comparison: online and offline use the same renderer/HUD; network effects are sampled to bound bandwidth, so dense particle trails are less smooth. This is a cooperative session prototype, not a persistent MMO service. See [network details](NETWORK.md).

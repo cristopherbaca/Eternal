@@ -12,6 +12,7 @@ public:
     bool classMenu=false,helpMenu=false; std::string message="Welcome to Ashenmere. C: class  H: help";
     bool inventoryMenu=false; int inventoryIndex=0; std::vector<Loot> loot;
     BossFight fight;
+    bool serverMode=false,chatEditing=false; std::string chatDraft; std::vector<std::string> chatLog; std::vector<Entity> guests;
     explicit Game(uint32_t seed=42,const std::filesystem::path& dataPath={});
     void setScene(const std::string& name);
     void input(const Input& in); void tick(float dt); void render(Framebuffer& f,float ms);

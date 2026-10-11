@@ -44,13 +44,14 @@ void Game::respawn() {
 }
 void Game::rewards() {
     for(auto& e:mobs) {
-        if(!e.alive&&!e.rewarded) { const auto& def=data.enemies[size_t(e.archetype)]; e.rewarded=true; hero.xp+=def.xp; loot.push_back({e.pos,def.item,def.gold}); message=def.name+" defeated. +"+std::to_string(def.xp)+" XP. E: collect loot"; }
+        if(!e.alive&&!e.rewarded) { const auto& def=data.enemies[size_t(e.archetype)]; e.rewarded=true; hero.xp+=def.xp; for(auto& guest:guests) if(distance(guest.pos,e.pos)<35) guest.xp+=def.xp; loot.push_back({e.pos,def.item,def.gold}); message=def.name+" defeated. +"+std::to_string(def.xp)+" XP. E: collect loot"; }
         if(!e.alive&&e.deadTime>45&&!e.summoned) { e.alive=true; e.hp=e.maxHp; e.pos=e.home; e.rewarded=false; e.poison=0; e.brain=Brain::Idle; }
     }
     while(hero.xp>=100+hero.level*25) { hero.xp-=100+hero.level*25; ++hero.level; hero.maxHp+=8; hero.hp=hero.maxHp; hero.power+=2; texts.push_back({hero.pos,"LEVEL UP",{255,223,115},3,3}); }
+    for(auto& guest:guests) while(guest.xp>=100+guest.level*25) { guest.xp-=100+guest.level*25; ++guest.level; guest.maxHp+=8; guest.hp=guest.maxHp; guest.power+=2; }
     if(loot.size()>200) loot.erase(loot.begin(),loot.begin()+int(loot.size()-200));
 }
-std::vector<Entity*> Game::entities() { std::vector<Entity*> es{&hero}; for(auto& e:party) es.push_back(&e); for(auto& e:mobs) es.push_back(&e); if(dragon.id==500) es.push_back(&dragon); return es; }
+std::vector<Entity*> Game::entities() { std::vector<Entity*> es; if(!serverMode) es.push_back(&hero); for(auto& e:guests) es.push_back(&e); for(auto& e:party) es.push_back(&e); for(auto& e:mobs) es.push_back(&e); if(dragon.id==500) es.push_back(&dragon); return es; }
 void Game::setScene(const std::string& name) {
     if(name=="water") hero.pos={0,34}; else if(name=="forest") hero.pos={-33,3}; else if(name=="ruins") hero.pos={0,-2}; else if(name=="boss") hero.pos={30,-17};
     camera.center=hero.pos; aim=hero.pos+Vec2{7,-3};
@@ -115,14 +116,16 @@ void Game::render(Framebuffer& f,float ms) {
     for(const auto& e:party) if(e.alive) drawCharacter(scene,e.pos,e.color,time,length(e.velocity)>0,int(e.role));
     for(const auto& e:mobs) if(e.alive) drawCharacter(scene,e.pos,e.color,time,length(e.velocity)>0,int(e.role));
     for(const auto& item:loot) scene.point(item.pos,.3f,{192,171,109},U'*',{0,0,1},.2f);
+    for(const auto& e:guests) if(e.alive) drawCharacter(scene,e.pos,e.color,time,length(e.velocity)>0,int(e.role));
     if(dragon.alive) drawDragon(scene,dragon.pos,time);
     combat.render(scene,time);
     world.reflections(scene,time); scene.convert(f);
     nameLabel(f,camera,hero); for(const auto& e:party) nameLabel(f,camera,e,e.id==hero.target);
     for(const auto& e:mobs) nameLabel(f,camera,e,e.id==hero.target);
     for(const auto& item:loot) { Vec2 p=camera.project(item.pos); if(p.y>2&&p.y<f.height-5) f.text(int(p.x)-4,int(p.y)-1,data.items[size_t(item.item)].name,{151,139,111}); }
+    for(const auto& e:guests) nameLabel(f,camera,e,e.id==hero.target);
     nameLabel(f,camera,dragon,dragon.id==hero.target);
-    floatingLabels(f,camera,texts); hud(f,hero,party,fight.active?&dragon:nullptr,ms);
+    floatingLabels(f,camera,texts); auto panels=party; for(const auto& e:guests) if(e.group==hero.group) panels.insert(panels.begin(),e); hud(f,hero,panels,fight.active?&dragon:nullptr,ms);
     Vec2 cursor=camera.project(aim); f.put(int(cursor.x),int(cursor.y),U'+',white);
     for(int y=f.height-4;y<f.height;++y) for(int x=0;x<f.width;++x) f.put(x,y,U' ');
     int slotWidth=std::max(1,(f.width-4)/6);
@@ -134,6 +137,8 @@ void Game::render(Framebuffer& f,float ms) {
     }
     f.text(2,f.height-2,message.substr(0,size_t(std::max(0,f.width-4))),muted);
     f.text(2,f.height-1,"WASD move  Mouse/arrows aim  1-6 cast  Tab target  C class  H help  Q quit",{82,104,117});
+    if(!chatLog.empty()) f.text(2,f.height-5,chatLog.back().substr(0,size_t(std::max(0,f.width-4))),{163,191,200});
+    if(chatEditing) f.text(2,f.height-2,"> "+chatDraft+"_",white);
     if(classMenu||helpMenu) {
         int w=std::min(66,f.width-4),x=(f.width-w)/2,y=std::max(2,f.height/2-7); box(f,x,y,w,14);
         f.text(x+2,y+1,classMenu?"CHOOSE YOUR CLASS":"ASHENMERE / controls",{222,201,148});

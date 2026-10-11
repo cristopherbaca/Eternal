@@ -11,7 +11,7 @@ struct Entity {
     int id=1; std::string name="Senje"; Kind kind=Kind::Player; Role role=Role::Mage;
     Vec2 pos{0,12},velocity{},home{0,12},facing{1,0}; Color color{121,132,195};
     float hp=129,maxHp=129,mp=129,maxMp=129,armor=8,power=25,speed=8;
-    int level=11,xp=0,gold=3880,target=0;
+    int level=11,xp=0,gold=3880,target=0,group=1;
     bool alive=true,rewarded=false,summoned=false; Brain brain=Brain::Idle;
     float attackTimer=0,poison=0,slow=0,shield=0,deadTime=0,taunt=0,hurtTime=0,dotTimer=0;
     std::array<float,6> cooldown{};

@@ -4,6 +4,8 @@
 #include "combat/combat.hpp"
 #include "game.hpp"
 #include "ai/ai.hpp"
+#include "net/protocol.hpp"
+#include "net/socket.hpp"
 #include <iostream>
 #include <stdexcept>
 void check(bool ok,const char* name) { if(!ok) throw std::runtime_error(name); }
@@ -46,5 +48,8 @@ int main() { try {
     for(auto* e:game.entities()) if(e->kind==Kind::Player||e->kind==Kind::Party) e->alive=false;
     tickDragon(game,1.f/60); check(!game.fight.active&&game.dragon.hp==game.dragon.maxHp,"wipe resets encounter");
     game.respawn(); game.setScene("boss"); dealDamage(game.dragon,100000,game.texts); int gold=game.hero.gold; tickDragon(game,1.f/60); check(game.fight.won&&game.hero.gold>gold,"boss victory rewards");
+    auto snapshot=net::parseSnapshot(net::snapshot(game,123)); check(snapshot.tick==123&&snapshot.entities.front().hp==game.hero.hp,"network snapshot round trip");
+    bool rejected=false; try { net::parseSnapshot("SNAP 1 0 1 1\nE 1"); } catch(const std::exception&) { rejected=true; } check(rejected,"truncated network state rejected");
+    check(net::safeText("Hi\x1b[2J\n",32)=="Hi[2J","chat control codes filtered");
     std::cout<<"Math, projection, ASCII, lighting, framebuffer, input and world checks passed\n";
 } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; } }

@@ -10,11 +10,12 @@ void tickDragon(Game& g,float dt) {
     auto& b=g.dragon; auto& fight=g.fight; if(fight.won) return;
     if(!b.alive) {
         fight.won=true; fight.active=false; g.hero.gold+=g.data.boss.gold; g.hero.xp+=1200;
+        for(auto& e:g.guests) if(distance(e.pos,b.pos)<40) { e.gold+=g.data.boss.gold; e.xp+=1200; }
         g.loot.push_back({b.pos,3,200}); g.loot.push_back({b.pos+Vec2{2,0},4,150}); g.combat.areas.clear();
         g.message="Dragon defeated! +1200 XP, +"+std::to_string(g.data.boss.gold)+"g. E: claim Dragonfang";
         g.combat.burst(b.pos,{255,204,100},100,16); return;
     }
-    if(!fight.active) { if(!g.hero.alive||distance(g.hero.pos,b.pos)>23) return; fight.active=true; g.message="Dragon awakens. Dodge the red rings!"; }
+    if(!fight.active) { bool nearby=false; for(auto* e:g.entities()) if(e->alive&&(e->kind==Kind::Player||e->kind==Kind::Remote)&&distance(e->pos,b.pos)<23) nearby=true; if(!nearby) return; fight.active=true; g.message="Dragon awakens. Dodge the red rings!"; }
     auto es=g.entities(); Entity* victim=nullptr; float best=1000; bool survivors=false;
     for(auto* e:es) if(e->alive&&hostile(b,*e)) { survivors=true; float d=distance(e->pos,b.pos); if(d<best) { best=d; victim=e; } }
     if(!survivors||best>55) { g.resetBoss(); g.message="The encounter resets. R: respawn after a wipe."; return; }
