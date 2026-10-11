@@ -22,17 +22,27 @@ void Framebuffer::text(int x,int y,const std::string& s,Color fg) {
 }
 std::string Framebuffer::diff(bool force) {
     force=force||previous.size()!=cells.size(); std::string out; out.reserve(cells.size()*15); Color fg{},bg{}; bool color=false;
+    previous.resize(cells.size());
+    // Small lighting fluctuations otherwise repaint thousands of cells for
+    // imperceptible RGB changes. Keep 24-bit ANSI colors on a 4-bit/channel
+    // palette, and compare the displayed cells rather than the raw lighting.
+    auto palette=[](Color c) {
+        auto channel=[](uint8_t v) { return uint8_t(std::min(255,((int(v)+8)/17)*17)); };
+        return Color{channel(c.r),channel(c.g),channel(c.b)};
+    };
     for(int y=0;y<height;++y) {
         bool located=false;
         for(int x=0;x<width;++x) {
-            const size_t i=size_t(y*width+x); const Cell& c=cells[i];
+            const size_t i=size_t(y*width+x); Cell c=cells[i];
+            c.fg=c.glyph==U' '?Color{}:palette(c.fg);
             if(!force&&c==previous[i]) { located=false; continue; }
+            previous[i]=c;
             if(!located) { out+="\x1b["+std::to_string(y+1)+";"+std::to_string(x+1)+"H"; located=true; }
             if(!color||fg!=c.fg) { fg=c.fg; out+="\x1b[38;2;"+std::to_string(fg.r)+";"+std::to_string(fg.g)+";"+std::to_string(fg.b)+"m"; }
             if(!color||bg!=c.bg) { bg=c.bg; out+="\x1b[48;2;"+std::to_string(bg.r)+";"+std::to_string(bg.g)+";"+std::to_string(bg.b)+"m"; }
             color=true; out+=utf8(c.glyph);
         }
-    } previous=cells; return out;
+    } return out;
 }
 void Framebuffer::dump(const std::string& path) const {
     std::ofstream f(path); if(!f) throw std::runtime_error("Cannot write frame: "+path);

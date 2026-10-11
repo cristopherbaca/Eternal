@@ -22,7 +22,13 @@ int main() { try {
     check(lit.r>dark.r&&int(lit.r)-dark.r>int(lit.b)-dark.b,"warm radial light");
     check(luminance(shade(px,{},.5f))<luminance(dark),"vignette");
     Framebuffer f(20,10); check(!f.diff().empty()&&f.diff().empty(),"diff only changes"); f.put(1,1,U'^'); check(!f.diff().empty(),"changed cell emitted");
+    Framebuffer stable(2,1); stable.put(0,0,U'x',{100,100,100}); stable.diff();
+    stable.put(0,0,U'x',{101,101,101}); stable.put(1,0,U' ',{1,2,3});
+    check(stable.diff().empty(),"invisible and sub-palette color changes do not repaint");
+    stable.put(0,0,U'x',{150,100,100}); check(!stable.diff().empty(),"visible lighting changes repaint");
     InputParser parser; check(parser.feed("\x1b[<0;12;").keys.empty(),"split mouse input"); auto in=parser.feed("8Mw"); check(in.click&&in.mouseX==11&&in.mouseY==7&&in.keys=="w","mouse continuation");
+    check(!parser.feed("\x1b[10;").cursorReport,"partial terminal acknowledgement waits");
+    auto reply=parser.feed("20Rw"); check(reply.cursorReport&&reply.keys=="w","terminal acknowledgement preserves player input");
     World a(42),b(42); check(a.trees.size()==b.trees.size(),"world repeatability"); check(a.blocked({90,0}),"world boundary");
     a.pushGrass({0,12},3,10); a.tick(1.f/60); check(length(a.grassBend({1,12}))>0,"grass deflects");
     for(int i=0;i<600;++i) a.tick(1.f/60); check(length(a.grassBend({1,12}))<.001f,"grass spring recovers");

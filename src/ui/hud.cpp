@@ -41,6 +41,6 @@ void hud(Framebuffer& f,const Entity& hero,const std::vector<Entity>& party,cons
         std::string label="Dragon"+(phase>1?" - phase "+std::to_string(phase):"")+"  "+std::to_string(int(boss->hp))+"/"+std::to_string(int(boss->maxHp));
         f.text(x,1,label); bar(f,x,2,w,boss->hp,boss->maxHp,{193,55,44});
     }
-    if(f.width>110) { char label[80]; std::snprintf(label,sizeof(label),"FPS %.0f - Frame %.1f ms",1000.f/std::max(ms,.01f),ms); f.text(f.width-31,0,label,muted); }
+    if(f.width>110) { char label[80]; std::snprintf(label,sizeof(label),"Sent %.0f fps / %.1f ms",1000.f/std::max(ms,.01f),ms); f.text(f.width-31,0,label,muted); }
 }
 }

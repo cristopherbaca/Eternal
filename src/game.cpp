@@ -2,7 +2,8 @@
 #include "ui/hud.hpp"
 #include "ai/ai.hpp"
 #include "assets/dragon.hpp"
-#include <cstdio>
+#include <algorithm>
+#include <cmath>
 namespace er {
 Game::Game(uint32_t seed,const std::filesystem::path& dataPath):data(dataPath),world(seed) {
     data.applyClass(hero,Role::Mage);
@@ -86,10 +87,16 @@ void Game::input(const Input& in) {
             if(!ids.empty()) hero.target=(current==ids.end()||++current==ids.end())?ids.front():*current;
             for(auto* e:es) if(e->id==hero.target) aim=e->pos;
         }
-        if(k=='^') aim.y-=2; if(k=='v') aim.y+=2; if(k=='<') aim.x-=2; if(k=='>') aim.x+=2;
-        if(k=='w') direction.y-=1; if(k=='s') direction.y+=1;
-        if(k=='a') direction.x-=1; if(k=='d') direction.x+=1;
-        if(k=='='||k=='+') camera.zoom=clamp(camera.zoom+.1f,.55f,2.f); if(k=='-') camera.zoom=clamp(camera.zoom-.1f,.55f,2.f);
+        if(k=='^') aim.y-=2;
+        if(k=='v') aim.y+=2;
+        if(k=='<') aim.x-=2;
+        if(k=='>') aim.x+=2;
+        if(k=='w') direction.y-=1;
+        if(k=='s') direction.y+=1;
+        if(k=='a') direction.x-=1;
+        if(k=='d') direction.x+=1;
+        if(k=='='||k=='+') camera.zoom=clamp(camera.zoom+.1f,.55f,2.f);
+        if(k=='-') camera.zoom=clamp(camera.zoom-.1f,.55f,2.f);
     }
     if(length(direction)>0) { velocity=normalized(direction)*hero.speed; movementTime=.16f; }
     if(in.scroll) camera.zoom=clamp(camera.zoom+in.scroll*.1f,.55f,2.f);
@@ -98,7 +105,10 @@ void Game::input(const Input& in) {
 }
 void Game::tick(float dt) {
     time+=dt; movementTime-=dt; if(movementTime<=0) velocity={};
-    if(hero.alive) hero.pos=world.move(hero.pos,velocity*dt*(world.water(hero.pos)?.55f:1.f)*(hero.slow>0?.35f:1.f)); hero.velocity=velocity;
+    if(hero.alive) {
+        hero.pos=world.move(hero.pos,velocity*dt*(world.water(hero.pos)?.55f:1.f)*(hero.slow>0?.35f:1.f));
+    }
+    hero.velocity=velocity;
     tickDragon(*this,dt);
     auto es=entities(); combat.tick(dt,es,world,texts);
     for(int slot:casts) { auto error=combat.cast(hero,slot,aim,hero.target,es,data,world,texts); if(!error.empty()) message=error; }

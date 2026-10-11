@@ -6,6 +6,10 @@ A playable C++17 terminal RPG with a procedural ASCII world, five classes, AI co
 
 Build with CMake 3.16+ and a C++17 compiler. No ncurses, game engine, package manager or runtime graphics library is required.
 
+For VS Code's C/C++ extension, configure CMake first: the included editor configuration reads `build/compile_commands.json` for the compiler's actual C++17 settings. Build the CMake project rather than compiling `game.cpp` alone, since it depends on the other game modules.
+
+On this Mac, open VS Code's **Run and Debug** sidebar, select **EternalRPG — External Terminal**, and click the green play button. It builds the whole project and opens the game in macOS Terminal. **Run → Run Without Debugging** uses the same configuration. The separate Code Runner **Run Code** button runs individual files and does not use this launch configuration. The build task currently points to the CMake installation in `/private/tmp/eternalrpg-build-tools`; update its macOS command if that temporary installation is removed.
+
 ```sh
 cmake -B build
 cmake --build build
@@ -14,7 +18,7 @@ cmake --build build
 
 On Windows, use a Developer PowerShell with Visual Studio's C++ tools, build with `cmake --build build --config Release`, then run `.\build\Release\eternal_rpg.exe` in a VT/truecolor terminal. POSIX terminal and socket backends cover Linux and macOS; Windows uses console APIs and Winsock. Local validation was on macOS ARM64. CI is configured for all three platforms; Linux/Windows results have not been run in this workspace.
 
-Use a dark truecolor terminal, a monospace font and about **200 columns × 60 rows**. A small font and more rows provide finer geometry; the camera scales with terminal height. Compact HUD mode activates below 80 columns or 28 rows. Below 40×16, the game asks for more space. Presentation targets 120 FPS by default; `--fps 60` reduces output/CPU use. Simulation remains 60 Hz.
+Use a dark truecolor terminal, a monospace font and about **200 columns × 60 rows**. A small font and more rows provide finer geometry; the camera scales with terminal height. For finer detail, maximize the external terminal and use **Command-minus** to shrink the font; aim for **320×100** cells (Menlo around 8–9 pt). The renderer automatically uses the extra rows and columns. Increasing `--width` does not resize an interactive terminal; that option is for headless captures. Compact HUD mode activates below 80 columns or 28 rows. Below 40×16, the game asks for more space. Presentation targets 60 FPS by default; `--fps 30` reduces terminal output further. Use `--fps 120` only if your terminal keeps up. Simulation remains 60 Hz.
 
 | Control | Action |
 | --- | --- |
@@ -35,6 +39,8 @@ Use a dark truecolor terminal, a monospace font and about **200 columns × 60 ro
 | Enter (online) | Chat; `/who`, `/invite ID`, `/accept`; Ctrl-G cancels typing |
 
 Standard terminal input has no portable key-release event. Movement uses a short renewal window and the terminal's keyboard repeat. Arrow keys adjust aim, so WASD handles movement.
+
+The VS Code launch configuration uses a 30-FPS presentation target for the dense external-terminal view. Input polling and simulation continue at 60 Hz between presentations. On Apple Terminal, a cursor-position acknowledgement gates the next frame to limit output backlog; terminals that do not reply within 250 ms fall back to ordinary paced output. The HUD's **Sent fps** measures submissions, not the terminal emulator's visible refresh rate. Acknowledgements indicate that escape sequences were processed, not that pixels were painted. Smaller fonts add detail but also increase the amount of terminal drawing work.
 
 Try the reference scenes:
 

@@ -1,6 +1,6 @@
 # Implementation log
 
-Each milestone is a buildable commit. Screenshots come from the actual framebuffer with a monospace font.
+Implementation checkpoints are recorded in git. Screenshots come from the actual framebuffer with a monospace font.
 
 ## 1 — Terminal
 
@@ -55,3 +55,9 @@ Validation: phase transitions, delayed telegraphs, wipe reset and victory reward
 Optional authoritative TCP server, 60 Hz simulation/20 Hz snapshots, position interpolation, eight players, replicated combat/AI/loot, chat and accepted party invitations. Run `./build/game_server`, then `./build/eternal_rpg --connect 127.0.0.1:7777 --name Senje` in another terminal. Enter opens chat; `/who`, `/invite ID`, `/accept` manage a party.
 
 Validation: real loopback server with two protocol peers and two terminal clients; checked movement timeout, MP authority, chat delivery, group membership and rendering. Snapshot round-trip/truncation tests pass. Visual comparison: online and offline use the same renderer/HUD; network effects are sampled to bound bandwidth, so dense particle trails are less smooth. This is a cooperative session prototype, not a persistent MMO service. See [network details](NETWORK.md).
+
+## 10 — Polish and profiling
+
+Added terminal-height camera scaling, canopy shadows, distinct skeleton silhouettes, revised shoreline spawns, piercing projectile hit tracking, CLI help, performance metrics, screenshots and build/control documentation. Run `./build/eternal_rpg --scene boss --demo` or `./build/eternal_rpg --scene water`; use a larger terminal grid for finer geometry.
+
+Validation: 70 checks pass; PTY and headless profiling results and their limits are recorded in [validation status](VALIDATION.md). Comparison with the Dragon and water frames: broad flapping wings, phase/party HUD, ground spell lighting and dim reflected silhouettes are present. The reference still has finer object geometry and richer glow. This checkpoint delivers a playable prototype; exact visual matching and full cross-platform acceptance remain open.

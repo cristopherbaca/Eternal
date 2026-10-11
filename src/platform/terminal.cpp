@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#include <poll.h>
 #include <cerrno>
 #endif
 namespace er {
@@ -47,12 +48,17 @@ Input InputParser::feed(const std::string& bytes) {
                 result.mouseX=x-1; result.mouseY=y-1;
                 if(b&64) result.scroll+=(b&1)?-1:1; else if(!(b&32)&&(b&3)==0&&last=='M') result.click=true;
             }
+        } else if(last=='R') {
+            int row=0,column=0;
+            result.cursorReport=std::sscanf(pending.substr(i+2,end-i-2).c_str(),"%d;%d",&row,&column)==2&&row>0&&column>0;
         } else if(last=='A') result.keys+='^'; else if(last=='B') result.keys+='v'; else if(last=='C') result.keys+='>'; else if(last=='D') result.keys+='<';
         i=end+1;
     } pending.erase(0,i); if(pending.size()>128) pending.clear(); return result;
 }
 Terminal::Terminal(bool enable) {
     if(!enable) return;
+    const char* program=std::getenv("TERM_PROGRAM");
+    synchronize=program&&std::string(program)=="Apple_Terminal";
 #ifdef _WIN32
     in=GetStdHandle(STD_INPUT_HANDLE); out=GetStdHandle(STD_OUTPUT_HANDLE);
     if(!GetConsoleMode(in,&oldIn)||!GetConsoleMode(out,&oldOut)) throw std::runtime_error("Run in a terminal, or use --headless");
@@ -106,8 +112,24 @@ Input Terminal::poll() {
         }
     } return r;
 #else
-    std::string s; char buf[4096]; ssize_t n; while((n=::read(STDIN_FILENO,buf,sizeof(buf)))>0) s.append(buf,size_t(n)); return parser.feed(s);
+    std::string s; char buf[4096]; ssize_t n; while((n=::read(STDIN_FILENO,buf,sizeof(buf)))>0) s.append(buf,size_t(n));
+    auto input=parser.feed(s);
+    if(input.cursorReport) pendingFrame=false;
+    return input;
 #endif
+}
+bool Terminal::frameReady() {
+    if(!pendingFrame) return true;
+    // A terminal may ignore cursor reports. Never freeze gameplay on a reply.
+    if(std::chrono::steady_clock::now()-sentFrame>std::chrono::milliseconds(250)) {
+        synchronize=false; pendingFrame=false; return true;
+    }
+    return false;
+}
+void Terminal::present(const std::string& bytes) {
+    if(!synchronize) { write(bytes); return; }
+    write(bytes+"\x1b[6n");
+    sentFrame=std::chrono::steady_clock::now(); pendingFrame=true;
 }
 void Terminal::write(const std::string& s) {
     if(!active||s.empty()) return;
@@ -115,7 +137,24 @@ void Terminal::write(const std::string& s) {
     size_t offset=0;
     while(offset<s.size()) { DWORD written=0; if(!WriteFile(out,s.data()+offset,static_cast<DWORD>(s.size()-offset),&written,nullptr)||!written) break; offset+=written; }
 #else
-    size_t offset=0; while(offset<s.size()) { ssize_t n=::write(STDOUT_FILENO,s.data()+offset,s.size()-offset); if(n>0) offset+=size_t(n); else if(errno!=EINTR) break; }
+    size_t offset=0;
+    while(offset<s.size()) {
+        const ssize_t n=::write(STDOUT_FILENO,s.data()+offset,s.size()-offset);
+        if(n>0) { offset+=size_t(n); continue; }
+        if(n<0&&errno==EINTR) continue;
+        if(n<0&&(errno==EAGAIN||errno==EWOULDBLOCK)) {
+            // stdin/stdout can share the same open file description. Making
+            // input nonblocking then also makes output nonblocking. Keep the
+            // unwritten tail: dropping it invalidates framebuffer diff state
+            // and may leave the terminal in the middle of an ANSI sequence.
+            pollfd ready{STDOUT_FILENO,POLLOUT,0};
+            int result;
+            do { result=::poll(&ready,1,-1); } while(result<0&&errno==EINTR);
+            if(result>0&&(ready.revents&POLLOUT)&&!(ready.revents&(POLLERR|POLLHUP|POLLNVAL))) continue;
+        }
+        alive=0; // Output disconnected or failed: stop instead of drawing more.
+        break;
+    }
 #endif
 }
 }

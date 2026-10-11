@@ -21,21 +21,34 @@ parser.add_argument("--stats", type=Path)
 args = parser.parse_args()
 resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 
-def run(extra, end_signal=None, exercise=False):
+def run(extra, end_signal=None, exercise=False, slow_reader=False, acknowledge=False):
     master, slave = os.openpty()
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 60, 200, 0, 0))
     original = termios.tcgetattr(slave)
-    process = subprocess.Popen([str(args.executable.resolve())] + extra, stdin=slave, stdout=slave, stderr=slave, close_fds=True)
+    environment = dict(os.environ)
+    environment.pop("TERM_PROGRAM", None)
+    if acknowledge:
+        environment["TERM_PROGRAM"] = "Apple_Terminal"
+    process = subprocess.Popen([str(args.executable.resolve())] + extra, stdin=slave, stdout=slave, stderr=slave, close_fds=True, env=environment)
     start = time.monotonic()
     tail = b""
     entered = restored = False
     sent = resized = False
     total = 0
+    reply_at = None
+    query_tail = b""
+    queries = 0
     try:
+        if slow_reader:
+            # Let the shared nonblocking PTY fill before consuming output.
+            time.sleep(0.25)
         while process.poll() is None:
             elapsed = time.monotonic() - start
             if elapsed > 12:
                 raise AssertionError("terminal process hung")
+            if reply_at is not None and time.monotonic() >= reply_at:
+                os.write(master, b"\x1b[1;1R")
+                reply_at = None
             if elapsed > 0.15 and not sent:
                 sent = True
                 if exercise:
@@ -50,15 +63,25 @@ def run(extra, end_signal=None, exercise=False):
             ready, _, _ = select.select([master], [], [], 0.01)
             if ready:
                 try:
-                    block = os.read(master, 65536)
+                    block = os.read(master, 4096 if slow_reader else 65536)
                 except OSError as exc:
                     if exc.errno == errno.EIO:
                         break
                     raise
                 total += len(block)
+                if acknowledge:
+                    query_data = query_tail + block
+                    count = query_data.count(b"\x1b[6n")
+                    if count:
+                        assert count == 1 and reply_at is None, "frames queued before terminal acknowledgement"
+                        queries += count
+                        reply_at = time.monotonic() + 0.08
+                    query_tail = query_data[-3:]
                 tail = (tail + block)[-131072:]
                 entered |= b"\x1b[?1049h" in tail
                 restored |= b"\x1b[?1049l" in tail and b"\x1b[?25h" in tail
+                if slow_reader:
+                    time.sleep(0.002)
         while select.select([master], [], [], 0)[0]:
             try:
                 block = os.read(master, 65536)
@@ -66,7 +89,9 @@ def run(extra, end_signal=None, exercise=False):
                 break
             if not block:
                 break
+            total += len(block)
             tail = (tail + block)[-131072:]
+            entered |= b"\x1b[?1049h" in tail
             restored |= b"\x1b[?1049l" in tail and b"\x1b[?25h" in tail
         process.wait(timeout=3)
         assert entered and restored, "alternate screen/cursor not restored"
@@ -78,6 +103,8 @@ def run(extra, end_signal=None, exercise=False):
         original[3] &= ~state_bit
         assert restored_mode == original, "terminal settings not restored"
         assert process.returncode in (0, 128 + signal.SIGABRT), tail[-2000:]
+        if acknowledge:
+            assert queries >= 5, "terminal acknowledgement path not exercised"
         return total
     finally:
         if process.poll() is None:
@@ -85,6 +112,21 @@ def run(extra, end_signal=None, exercise=False):
             process.wait(timeout=3)
         os.close(master)
         os.close(slave)
+
+with tempfile.TemporaryDirectory(prefix="eternal-backpressure-") as directory:
+    stats = Path(directory) / "metrics.json"
+    received = run(["--frames", "1", "--stats", str(stats)], slow_reader=True)
+    metrics = json.loads(stats.read_text())
+    setup = b"\x1b[?1049h\x1b[?25l\x1b[?7l\x1b[?1003h\x1b[?1006h\x1b[2J"
+    restore = b"\x1b[0m\x1b[?1003l\x1b[?1006l\x1b[?25h\x1b[?7h\x1b[?1049l"
+    assert received == metrics["ansi_bytes"] + len(setup) + len(restore), "terminal output dropped under backpressure"
+    print("PASS: slow terminal receives every frame byte")
+
+with tempfile.TemporaryDirectory(prefix="eternal-ack-") as directory:
+    stats = Path(directory) / "metrics.json"
+    run(["--frames", "6", "--fps", "60", "--stats", str(stats)], acknowledge=True)
+    assert json.loads(stats.read_text())["seconds"] >= 0.4, "presentation did not wait for slow terminal"
+    print("PASS: delayed terminal acknowledgements prevent frame backlog")
 
 run([], exercise=True)
 for end_signal in (signal.SIGINT, signal.SIGTERM, signal.SIGABRT):

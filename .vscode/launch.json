@@ -1,0 +1,17 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "EternalRPG — External Terminal",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/eternal_rpg",
+            "args": ["--fps", "30"],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false,
+            "externalConsole": true,
+            "MIMode": "lldb",
+            "preLaunchTask": "EternalRPG: Build"
+        }
+    ]
+}

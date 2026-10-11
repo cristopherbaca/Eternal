@@ -11,7 +11,7 @@
 int main(int argc,char** argv) {
     try {
         bool headless=false,demo=false;
-        int frames=0,w=200,h=60,fps=120;
+        int frames=0,w=200,h=60,fps=60;
         uint32_t seed=42;
         std::string dump,stats,scene="grass",className="Mage",dataPath,connect,name="Senje";
         for(int i=1;i<argc;++i) {
@@ -36,7 +36,7 @@ int main(int argc,char** argv) {
                     "WASD move, mouse/arrows aim, click/Space primary, 1-6 abilities\n"
                     "Tab target, C class, I inventory, E loot, B boss, R respawn, H help, Q quit\n"
                     "--scene grass|forest|ruins|water|boss  --class Warrior|Mage|Archer|Cleric|Rogue\n"
-                    "--seed N  --name NAME  --fps 120  --data DIR  --demo\n"
+                    "--seed N  --name NAME  --fps 60  --data DIR  --demo\n"
                     "--connect HOST:PORT (Enter: chat, /who, /invite ID, /accept)\n"
                     "--headless --frames N --width 200 --height 60 --dump frame.json --stats metrics.json\n"
                     "--benchmark implies --headless; headless defaults to 600 deterministic ticks.\n";
@@ -57,12 +57,13 @@ int main(int argc,char** argv) {
         std::unique_ptr<er::net::Client> client;
         if(!connect.empty()) client=std::make_unique<er::net::Client>(connect,name,game.hero.role);
         using Clock=std::chrono::steady_clock;
-        auto start=Clock::now(),last=start;
+        auto start=Clock::now(),last=start,lastPresented=start,nextPresentation=start;
         float frameMs=1000.f/fps,accumulator=0,nextShot=0,nextArea=1.5f;
         int count=0;
         uint64_t bytes=0;
         std::vector<double> workTimes;
         auto period=std::chrono::microseconds(1000000/fps);
+        auto inputPeriod=std::chrono::microseconds(1000000/std::max(60,fps));
         while(er::Terminal::running()&&(!frames||count<frames)) {
             auto begin=Clock::now();
             auto input=terminal.poll();
@@ -101,19 +102,26 @@ int main(int argc,char** argv) {
                 accumulator+=headless?1.f/60:elapsed;
                 while(accumulator>=1.f/60) { game.tick(1.f/60); accumulator-=1.f/60; }
             }
-            game.render(frame,frameMs);
-            auto output=frame.diff();
-            bytes+=output.size();
-            terminal.write(output);
-            ++count;
-            workTimes.push_back(std::chrono::duration<double,std::milli>(Clock::now()-begin).count());
+            if(headless||(begin>=nextPresentation&&terminal.frameReady())) {
+                if(count>0&&!headless) {
+                    float interval=std::chrono::duration<float,std::milli>(begin-lastPresented).count();
+                    frameMs=frameMs*.9f+interval*.1f;
+                }
+                game.render(frame,frameMs);
+                auto output=frame.diff();
+                bytes+=output.size();
+                terminal.present(output);
+                lastPresented=begin;
+                // Keep the target cadence, but never burst queued old frames.
+                nextPresentation=std::max(nextPresentation+period,Clock::now());
+                ++count;
+                workTimes.push_back(std::chrono::duration<double,std::milli>(Clock::now()-begin).count());
+            }
             if(!headless||client) {
-                auto deadline=begin+period;
+                auto deadline=begin+inputPeriod;
                 std::this_thread::sleep_until(deadline-std::chrono::microseconds(300));
                 while(Clock::now()<deadline) std::this_thread::yield();
             }
-            float actual=std::chrono::duration<float,std::milli>(Clock::now()-begin).count();
-            frameMs=frameMs*.9f+actual*.1f;
         }
         double seconds=std::chrono::duration<double>(Clock::now()-start).count();
         double mean=workTimes.empty()?0:std::accumulate(workTimes.begin(),workTimes.end(),0.0)/workTimes.size();
