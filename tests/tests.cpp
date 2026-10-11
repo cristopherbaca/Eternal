@@ -3,6 +3,7 @@
 #include "world/world.hpp"
 #include "combat/combat.hpp"
 #include "game.hpp"
+#include "ai/ai.hpp"
 #include <iostream>
 #include <stdexcept>
 void check(bool ok,const char* name) { if(!ok) throw std::runtime_error(name); }
@@ -38,5 +39,12 @@ int main() { try {
     game.hero.pos=game.loot.front().pos; game.collectLoot(); check(!game.hero.inventory.empty(),"nearby loot collected");
     game.equipSelected(); float power=game.hero.power,armor=game.hero.armor; game.equipSelected(); check(power==game.hero.power&&armor==game.hero.armor,"equipment cannot stack repeatedly");
     dealDamage(game.hero,10000,game.texts); game.respawn(); check(game.hero.alive&&game.hero.hp==game.hero.maxHp,"death and respawn");
+    game.setScene("boss"); tickDragon(game,1.f/60); check(game.fight.active,"boss activates in arena");
+    game.dragon.hp=game.dragon.maxHp*.6f; tickDragon(game,1.f/60); check(game.fight.phase==2,"boss phase 2");
+    game.dragon.hp=game.dragon.maxHp*.3f; game.fight.ring=0; tickDragon(game,1.f/60); check(game.fight.phase==3,"boss phase 3");
+    for(int i=0;i<50;++i) tickDragon(game,1.f/60); check(!game.combat.areas.empty()&&game.combat.areas.back().delay>0,"boss telegraphs before damage");
+    for(auto* e:game.entities()) if(e->kind==Kind::Player||e->kind==Kind::Party) e->alive=false;
+    tickDragon(game,1.f/60); check(!game.fight.active&&game.dragon.hp==game.dragon.maxHp,"wipe resets encounter");
+    game.respawn(); game.setScene("boss"); dealDamage(game.dragon,100000,game.texts); int gold=game.hero.gold; tickDragon(game,1.f/60); check(game.fight.won&&game.hero.gold>gold,"boss victory rewards");
     std::cout<<"Math, projection, ASCII, lighting, framebuffer, input and world checks passed\n";
 } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; } }

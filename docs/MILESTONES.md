@@ -43,3 +43,9 @@ Validation: all 30 casts, MP/cooldown rejection, actual projectile damage, heali
 Data-driven Skeletons, Hollow Wisps and Grave Sentinels with idle/aggro/chase/attack AI. Damage, death/respawn, regeneration, XP/level-ups, gold, named loot and a 24-item inventory with three equipment slots. `E` collects nearby loot, `I` opens inventory, `J/K` selects, Enter equips; `R` respawns when dead.
 
 Tests verify loot/XP exactly once, collection, non-stacking equipment and respawn. Comparison with spell reference: monsters have visible names and damaged health bars; Rusty Stiletto and Old Sabatons appear as world loot. Party is still stationary at this checkpoint; coordinated movement/healing follows next.
+
+## 8 — Party and Dragon
+
+Healer triages/raises allies, warrior taunts/tanks, mage casts at range; all follow and avoid hostile areas. Large red-brown dragon with flapping wings, three data-driven phases, delayed 1.5s red rings, cone breath, burning patches, wing sweep, adds, enrage, wipe reset and victory equipment/gold. `B` travels to the arena; `./build/eternal_rpg --scene boss --demo` previews the fight.
+
+Validation: phase transitions, delayed telegraphs, wipe reset and victory reward tests. Comparison with boss recording: boss/party HUD, broad wing silhouette, warm spell ground and real green heal numbers are present. At 200×60 wings are a simplified procedural silhouette and source footage has far more detail. Timings and damage are tunable in `data/boss*.txt`.

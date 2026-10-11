@@ -17,6 +17,9 @@ Data::Data(const std::filesystem::path& requested) {
     read("items.txt",[&](std::istream& in) { ItemDef item; in>>item.id>>std::quoted(item.name)>>item.slot>>item.armor>>item.power>>item.value; if(item.id!=int(items.size())||item.slot<0||item.slot>2) throw std::runtime_error("Invalid item id/slot"); items.push_back(item); });
     if(enemies.empty()||items.empty()) throw std::runtime_error("Missing enemies or items");
     for(const auto& e:enemies) if(e.item<0||e.item>=int(items.size())) throw std::runtime_error("Unknown loot item");
+    read("boss.txt",[&](std::istream& in){ in>>boss.hp>>boss.armor>>boss.power>>boss.speed>>boss.enrage>>boss.gold; if(boss.hp<=0||boss.enrage<=0) throw std::runtime_error("Invalid boss"); });
+    read("boss_phases.txt",[&](std::istream& in){ BossPhase p; in>>p.phase>>p.threshold>>p.ringInterval>>p.rings>>p.damage>>p.breathInterval>>p.adds; if(p.phase!=int(phases.size())+1||p.rings<1||p.ringInterval<=0) throw std::runtime_error("Invalid boss phase"); phases.push_back(p); });
+    if(phases.size()!=3) throw std::runtime_error("Expected three boss phases");
 }
 void Data::applyClass(Entity& e,Role role) const { const auto& c=classes[size_t(role)]; e.role=role; e.hp=e.maxHp=c.hp; e.mp=e.maxMp=c.mp; e.armor=c.armor; e.power=c.power; e.speed=c.speed; e.color=c.color; e.cooldown.fill(0); }
 }

@@ -1,0 +1,2 @@
+# hp armor meleePower speed enrageSeconds victoryGold
+7200 20 38 2.4 150 1200

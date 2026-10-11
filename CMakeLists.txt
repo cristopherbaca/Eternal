@@ -10,6 +10,7 @@ add_library(eternal_core src/renderer/framebuffer.cpp src/platform/terminal.cpp 
 target_sources(eternal_core PRIVATE src/ui/hud.cpp)
 target_sources(eternal_core PRIVATE src/assets/data.cpp src/combat/combat.cpp)
 target_sources(eternal_core PRIVATE src/ai/ai.cpp)
+target_sources(eternal_core PRIVATE src/ai/party.cpp src/ai/dragon.cpp)
 target_compile_definitions(eternal_core PUBLIC ER_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 target_include_directories(eternal_core PUBLIC src)
 if(MSVC)

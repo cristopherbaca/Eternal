@@ -23,7 +23,12 @@ int main(int argc,char** argv) {
         using Clock=std::chrono::steady_clock; auto start=Clock::now(),last=start; float ms=16.67f,accumulator=0; int count=0;
         while(er::Terminal::running()&&(!frames||count<frames)) {
             auto begin=Clock::now(); auto input=terminal.poll(); game.input(input); if(game.quit) break;
-            if(demo) { er::Input action; if(count%45==0) action.keys+='1'; if(count%300==90) action.keys+='2'; game.input(action); }
+            if(demo) {
+                er::Input action; if(count%45==0) action.keys+='1'; if(count%300==90) action.keys+='2'; if(game.hero.mp<30&&count%60==0) action.keys+='6';
+                if(game.fight.active) game.aim=game.dragon.pos;
+                else { float best=25; for(const auto& e:game.mobs) if(e.alive&&er::distance(e.pos,game.hero.pos)<best) { best=er::distance(e.pos,game.hero.pos); game.aim=e.pos; game.hero.target=e.id; } }
+                game.input(action);
+            }
             if(!headless) { auto [x,y]=terminal.size(); if(x!=frame.width||y!=frame.height) frame.resize(x,y); }
             accumulator+=headless?1.f/60:std::min(.25f,std::chrono::duration<float>(begin-last).count()); last=begin;
             while(accumulator>=1.f/60) { game.tick(1.f/60); accumulator-=1.f/60; }
