@@ -1,0 +1,12 @@
+#pragma once
+#include "world/world.hpp"
+#include "platform/terminal.hpp"
+namespace er {
+class Game {
+public:
+    World world; Camera camera; Vec2 player{0,12},velocity{},aim{5,12}; float time=0; bool quit=false;
+    explicit Game(uint32_t seed=42):world(seed) {}
+    void input(const Input& in); void tick(float dt); void render(Framebuffer& f,float ms);
+private: float movementTime=0; Scene scene;
+};
+}
