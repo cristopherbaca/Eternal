@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cmath>
 namespace er {
-Game::Game(uint32_t seed,const std::filesystem::path& dataPath,const ModSet& mods):activeMods(mods.names),data(dataPath,mods.directories),world(seed,mods.generation) {
+Game::Game(uint64_t seed,const std::filesystem::path& dataPath,const ModSet& mods):sourceData(dataPath),sourceMods(mods),activeMods(mods.names),data(dataPath,mods.directories),world(seed,mods.generation) {
     data.applyClass(hero,Role::Mage);
     dragon.id=500; dragon.kind=Kind::Boss; dragon.name="Dragon"; dragon.pos=dragon.home={30,-30}; dragon.hp=dragon.maxHp=data.boss.hp; dragon.armor=data.boss.armor; dragon.power=data.boss.power; dragon.speed=data.boss.speed;
     discovered[0]=true;
@@ -34,10 +34,10 @@ void Game::streamEnemies() {
             for(const auto& e:mobs) if(e.spawnSlot==slot&&e.spawnChunkX==x&&e.spawnChunkY==y) { exists=true; break; }
             if(exists) continue;
             // Coordinate hashing means visiting chunks in a different order gives the same spawns.
-            Vec2 p{float(x*64)+4+noise(x,y,world.seed+uint32_t(slot*71+83))*56,
-                   float(y*64)+4+noise(x,y,world.seed+uint32_t(slot*97+211))*56};
+            Vec2 p{float(x*64)+4+noise(x,y,world.terrainSeed+uint32_t(slot*71+83))*56,
+                   float(y*64)+4+noise(x,y,world.terrainSeed+uint32_t(slot*97+211))*56};
             if(world.blocked(p)||world.water(p)||distance(p,hero.pos)<12) continue;
-            int archetype=std::min(int(data.enemies.size())-1,int(noise(x,y,world.seed+uint32_t(slot+811))*data.enemies.size()));
+            int archetype=std::min(int(data.enemies.size())-1,int(noise(x,y,world.terrainSeed+uint32_t(slot+811))*data.enemies.size()));
             size_t before=mobs.size(); spawnMob(p,archetype);
             if(mobs.size()>before) { auto& e=mobs.back(); e.spawnChunkX=x; e.spawnChunkY=y; e.spawnSlot=slot; }
         }
@@ -54,7 +54,7 @@ void Game::collectLoot() {
 void Game::equipSelected() {
     if(hero.inventory.empty()) return;
     inventoryIndex=clamp(inventoryIndex,0,int(hero.inventory.size())-1); int id=hero.inventory[size_t(inventoryIndex)]; const auto& item=data.items[size_t(id)];
-    int old=hero.equipment[size_t(item.slot)]; if(old>=0) { hero.armor-=data.items[size_t(old)].armor; hero.power-=data.items[size_t(old)].power; }
+    int old=hero.equipment[size_t(item.slot)]; if(old==id) { hero.armor-=item.armor; hero.power-=item.power; hero.equipment[size_t(item.slot)]=-1; message="Unequipped "+item.name; return; } if(old>=0) { hero.armor-=data.items[size_t(old)].armor; hero.power-=data.items[size_t(old)].power; }
     hero.equipment[size_t(item.slot)]=id; hero.armor+=item.armor; hero.power+=item.power; message="Equipped "+item.name;
 }
 void Game::respawn() {
@@ -66,7 +66,7 @@ void Game::respawn() {
 }
 void Game::rewards() {
     for(auto& e:mobs) {
-        if(!e.alive&&!e.rewarded) { const auto& def=data.enemies[size_t(e.archetype)]; e.rewarded=true; awardXP(def.xp*e.level); if(e.spawnSlot>=0) respawnAfter[{e.spawnChunkX,e.spawnChunkY,e.spawnSlot}]=time+world.config.respawnSeconds; loot.push_back({e.pos,def.item,def.gold}); message=def.name+" defeated. +"+std::to_string(def.xp*e.level)+" XP. E: collect loot"; }
+        if(!e.alive&&!e.rewarded) { const auto& def=data.enemies[size_t(e.archetype)]; e.rewarded=true; awardXP(def.xp*e.level); if(e.spawnSlot>=0) respawnAfter[{e.spawnChunkX,e.spawnChunkY,e.spawnSlot}]=time+world.config.respawnSeconds; loot.push_back({e.pos,def.item,def.gold}); if(e.id%3==0&&data.items.size()>7) loot.push_back({e.pos+Vec2{1,0},5+(e.id/3)%3,0}); message=def.name+" defeated. +"+std::to_string(def.xp*e.level)+" XP. E: collect loot"; }
         if(!e.alive&&e.deadTime>world.config.respawnSeconds&&!e.summoned) { e.alive=true; e.hp=e.maxHp; e.pos=e.home; e.rewarded=false; e.poison=0; e.brain=Brain::Idle; }
     }
     if(loot.size()>200) loot.erase(loot.begin(),loot.begin()+int(loot.size()-200));
@@ -133,6 +133,8 @@ void Game::input(const Input& in) {
 }
 void Game::tick(float dt) {
     if(screen!=Screen::Playing) return;
+    saveTimer+=dt;
+    if(activeSave>=0&&saveTimer>=30) { saveTimer=0; if(!saveAdventure()) message=menuNotice; }
     world.focus(hero.pos);
     spawnTimer-=dt;
     if(spawnTimer<=0||World::chunkAt(hero.pos)!=enemyCenter) { streamEnemies(); spawnTimer=1; }
@@ -155,10 +157,22 @@ void Game::tick(float dt) {
     texts.erase(std::remove_if(texts.begin(),texts.end(),[](const auto& t){return t.life<=0;}),texts.end());
     camera.center=lerp(camera.center,hero.pos,1-std::exp(-dt*6));
 }
-void Game::render(Framebuffer& f,float ms) {
+void Game::render(Framebuffer& f,float ms,Framebuffer* interface) {
     if(f.width<40||f.height<16) { f.clear(); f.text(0,0,"Resize to at least 40x16"); f.text(0,2,"Q: quit"); return; }
-    camera.width=f.width; camera.height=f.height; scene.begin(camera); world.render(scene,time);
-    if(hero.alive) drawCharacter(scene,hero.pos,{255,210,112},time,length(velocity)>0,int(hero.role));
+    camera.width=f.width; camera.height=f.height;
+    if(frontEnd()) {
+        f.clear();
+        for(int x=0;x<f.width;++x) {
+            int ridge=int(f.height*.78+std::sin(x*.07)*3+std::sin(x*.19)*2);
+            f.put(x,ridge,U'^',{40,64,77});
+            if(x%7==0) f.put(x,int(noise(x,0,42)*f.height*.65f),U'.',{47,67,86});
+            for(int y=ridge+1;y<f.height;++y) if((x+y)%4==0) f.put(x,y,U'/',{21,34,46});
+        }
+        if(interface) { for(auto& cell:interface->cells) cell={U'\0',white,background}; renderUI(*interface,ms); }
+        else renderUI(f,ms);
+        return;
+    }
+    scene.begin(camera); world.render(scene,time);
     for(const auto& e:party) if(e.alive) drawCharacter(scene,e.pos,e.color,time,length(e.velocity)>0,int(e.role));
     for(const auto& e:mobs) if(e.alive) {
         if(e.archetype==0) drawSkeleton(scene,e.pos,mix(e.color,{237,128,104},.55f),time); else drawCharacter(scene,e.pos,mix(e.color,{237,128,104},.55f),time,length(e.velocity)>0,int(e.role));
@@ -173,9 +187,20 @@ void Game::render(Framebuffer& f,float ms) {
     for(const auto& item:loot) { Vec2 p=camera.project(item.pos); if(p.y>2&&p.y<f.height-5) f.text(int(p.x)-4,int(p.y)-1,data.items[size_t(item.item)].name,{151,139,111}); }
     nameLabel(f,camera,dragon,dragon.id==hero.target);
     }
-    floatingLabels(f,camera,texts); hud(f,hero,party,fight.active?&dragon:nullptr,ms);
+    floatingLabels(f,camera,texts);
     Vec2 cursor=camera.project(aim); f.put(int(cursor.x),int(cursor.y),U'+',white);
-    for(int y=f.height-4;y<f.height;++y) for(int x=0;x<f.width;++x) f.put(x,y,U' ');
+    if(interface) {
+        // NUL cells are transparent in the native interface layer.
+        for(auto& cell:interface->cells) cell={U'\0',white,background};
+        if(screen!=Screen::Playing) for(auto& cell:f.cells) cell.fg=cell.fg*.24f;
+        renderUI(*interface,ms);
+    } else renderUI(f,ms);
+}
+void Game::renderUI(Framebuffer& f,float ms) {
+    uiWidth=f.width; uiHeight=f.height;
+    if(frontEnd()) { renderMenu(f); return; }
+    hud(f,hero,party,fight.active?&dragon:nullptr,ms);
+    for(int y=f.height-5;y<f.height;++y) for(int x=0;x<f.width;++x) f.put(x,y,U' ');
     int slotWidth=std::max(1,(f.width-4)/6);
     for(int i=0;i<6;++i) {
         const auto& a=data.abilities[size_t(hero.role)][size_t(i)]; std::string label=std::to_string(i+1)+" "+a.name;
@@ -184,7 +209,7 @@ void Game::render(Framebuffer& f,float ms) {
         if(f.width>90) f.text(2+i*slotWidth,f.height-3,std::to_string(int(a.cost))+" MP",muted);
     }
     f.text(2,f.height-2,message.substr(0,size_t(std::max(0,f.width-4))),muted);
-    if(showHelp) f.text(2,f.height-1,"WASD move  Mouse/arrows aim  1-6 cast  Tab target  C class  M map  Esc/P pause",{82,104,117});
+    if(showHelp) f.text(2,f.height-1,"WASD move  Mouse/arrows aim  1-6 cast  Tab target  C class  M map  Esc/P pause",{165,188,202});
     f.text(2,f.height-5,std::string(world.region(hero.pos))+" | Lv "+std::to_string(hero.level)+" XP "+std::to_string(hero.xp)+"/"+std::to_string(100+hero.level*25)+(hero.testing?" | TEST POWER ON":""),{196,190,144});
     if(classMenu||helpMenu) {
         int w=std::min(66,f.width-4),x=(f.width-w)/2,y=std::max(2,f.height/2-7); box(f,x,y,w,14);
@@ -195,13 +220,18 @@ void Game::render(Framebuffer& f,float ms) {
     if(inventoryMenu) {
         int w=std::min(64,f.width-2),h=std::min(f.height-2,28),x=(f.width-w)/2,y=1; box(f,x,y,w,h);
         f.text(x+2,y+1,"INVENTORY / "+std::to_string(hero.gold)+"g",{218,199,145});
-        f.text(x+2,y+2,"J/K select - Enter equip - I close",muted);
+        f.text(x+2,y+2,"J/K select - Enter equip/unequip - I close",muted);
         f.text(x+2,y+3,"Power "+std::to_string(int(hero.power))+"  Armor "+std::to_string(int(hero.armor))+"  XP "+std::to_string(hero.xp)+"/"+std::to_string(100+hero.level*25));
-        if(hero.inventory.empty()) f.text(x+2,y+5,"Defeat enemies; press E near their loot.",muted);
-        int start=std::max(0,inventoryIndex-(h-9));
-        for(int i=start;i<int(hero.inventory.size())&&i-start<h-7;++i) {
+        const char* slots[]={"Weapon", "Clothing", "Charm"};
+        for(int slot=0;slot<3;++slot) {
+            int id=hero.equipment[size_t(slot)];
+            f.text(x+2,y+5+slot,std::string(slots[slot])+": "+(id<0?"None":data.items[size_t(id)].name),{155,200,212});
+        }
+        if(hero.inventory.empty()) f.text(x+2,y+9,"Defeat enemies; press E near their loot.",muted);
+        int start=std::max(0,inventoryIndex-(h-13));
+        for(int i=start;i<int(hero.inventory.size())&&i-start<h-11;++i) {
             const auto& item=data.items[size_t(hero.inventory[size_t(i)])]; bool equipped=hero.equipment[size_t(item.slot)]==item.id;
-            f.text(x+2,y+5+i-start,(i==inventoryIndex?"> ":"  ")+item.name+(equipped?" [equipped]":"")+"  +"+std::to_string(int(item.power))+" power / +"+std::to_string(int(item.armor))+" armor",i==inventoryIndex?white:muted);
+            f.text(x+2,y+9+i-start,(i==inventoryIndex?"> ":"  ")+item.name+(equipped?" [equipped]":"")+"  +"+std::to_string(int(item.power))+" power / +"+std::to_string(int(item.armor))+" armor",i==inventoryIndex?white:muted);
         }
     }
     if(screen!=Screen::Playing) { renderMenu(f); return; }

@@ -44,19 +44,29 @@ void Game::setCompanions(bool enabled) {
 void Game::menuInput(const Input& input) {
     std::string keys=input.keys;
     if(input.click) {
-        int width=std::min(78,camera.width-2),height=std::min(30,camera.height-2);
-        int x=(camera.width-width)/2,y=(camera.height-height)/2;
+        int cols=uiWidth?uiWidth:camera.width,rows=uiHeight?uiHeight:camera.height;
+        int width=std::min(78,cols-2),height=std::min(30,rows-2);
+        int x=(cols-width)/2,y=(rows-height)/2;
         if(input.mouseX>=x+2&&input.mouseX<x+width-2) {
             int row=input.mouseY-y;
             if(screen==Screen::Map&&row>=13&&row<=21&&(row-13)%2==0) keys+=char('1'+(row-13)/2);
             else if(screen!=Screen::Map&&row>=5&&(row-5)%2==0) {
                 int visible=std::max(1,(height-7)/2),first=std::max(0,menuIndex-visible+1);
-                int selected=first+(row-5)/2,count=screen==Screen::Title?3:screen==Screen::Paused?5:9;
-                if(selected<count&&selected<first+visible) { menuIndex=selected; keys+='\r'; }
+                int selected=first+(row-5)/2,count=menuCount();
+                if(selected<count&&selected<first+visible) { editingField=false; menuIndex=selected; keys+='\r'; }
             }
         }
     }
     for(char k:keys) {
+        if(screen==Screen::Create&&editingField) {
+            std::string& field=menuIndex==0?draftWorld:menuIndex==1?draftName:draftSeed;
+            if(k=='\r'||k=='\n'||k==27) editingField=false;
+            else if(k==127||k==8) { if(!field.empty()) field.pop_back(); }
+            else if(k>=32&&k<=126&&field.size()<size_t(menuIndex==3?12:menuIndex==1?20:24)) {
+                if(menuIndex!=3||(k>='0'&&k<='9')) field+=k;
+            }
+            continue;
+        }
         if(k=='q') { quit=true; return; }
         if(screen==Screen::Map) {
             if(k==27||k=='m'||k=='p') { screen=returnScreen; menuIndex=0; return; }
@@ -82,11 +92,13 @@ void Game::menuInput(const Input& input) {
             }
             continue;
         }
-        int count=screen==Screen::Title?3:screen==Screen::Paused?5:9;
+        int count=menuCount();
         if(k=='w'||k=='^') menuIndex=(menuIndex+count-1)%count;
         if(k=='s'||k=='v') menuIndex=(menuIndex+1)%count;
         if(k==27||k=='p') {
-            if(screen==Screen::Settings) screen=returnScreen;
+            if(screen==Screen::Create||screen==Screen::Saves) screen=Screen::Title;
+            else if(screen==Screen::SaveActions||screen==Screen::DeleteSave) { screen=Screen::Saves; refreshSaves(); }
+            else if(screen==Screen::Settings) screen=returnScreen;
             else if(screen==Screen::Paused) screen=Screen::Playing;
             menuIndex=0; return;
         }
@@ -117,17 +129,42 @@ void Game::menuInput(const Input& input) {
                 }
                 case 8: screen=returnScreen; menuIndex=0; return;
             }
+        } else if(screen==Screen::Create&&(activate||k=='<'||k=='>'||k=='a'||k=='d')) {
+            if(menuIndex==2) draftRole=Role((int(draftRole)+direction+5)%5);
+            else if(menuIndex==4) draftGod=!draftGod;
+            else if(activate) {
+                if(menuIndex==0||menuIndex==1||menuIndex==3) editingField=true;
+                else if(menuIndex==5) { createAdventure(); return; }
+                else { screen=Screen::Title; menuIndex=0; }
+            }
         } else if(activate&&screen==Screen::Title) {
-            if(menuIndex==0) { screen=Screen::Playing; message="Explore freely. M: world map. Esc/P: pause and settings."; }
-            else if(menuIndex==1) { returnScreen=screen; screen=Screen::Settings; }
+            menuNotice.clear();
+            if(menuIndex==0) beginCreation();
+            else if(menuIndex==1) { refreshSaves(); screen=Screen::Saves; menuIndex=0; }
+            else if(menuIndex==2) { returnScreen=screen; screen=Screen::Settings; menuIndex=0; }
             else quit=true;
+            return;
+        } else if(activate&&screen==Screen::Saves) {
+            if(menuIndex==8) screen=Screen::Title;
+            else { selectedSave=menuIndex; screen=Screen::SaveActions; }
+            menuIndex=0; menuNotice.clear(); return;
+        } else if(activate&&screen==Screen::SaveActions) {
+            if(menuIndex==0) {
+                if(saves[size_t(selectedSave)].exists) { if(activeSave>=0&&!saveAdventure()) return; loadAdventure(selectedSave); }
+                else beginCreation(selectedSave);
+            } else if(menuIndex==1&&saves[size_t(selectedSave)].exists) screen=Screen::DeleteSave;
+            else { screen=Screen::Saves; refreshSaves(); }
             menuIndex=0; return;
+        } else if(activate&&screen==Screen::DeleteSave) {
+            if(menuIndex==1) deleteAdventure(selectedSave);
+            screen=Screen::Saves; menuIndex=0; return;
         } else if(activate&&screen==Screen::Paused) {
             if(menuIndex==0) screen=Screen::Playing;
             else if(menuIndex==1) { returnScreen=screen; screen=Screen::Settings; }
             else if(menuIndex==2) { returnScreen=screen; screen=Screen::Map; }
-            else if(menuIndex==3) screen=Screen::Title;
-            else quit=true;
+            else if(menuIndex==3) { saveAdventure(); return; }
+            else if(menuIndex==4) { if(!saveAdventure()) return; screen=Screen::Title; refreshSaves(); }
+            else { if(!saveAdventure()) return; quit=true; }
             menuIndex=0; return;
         }
     }
@@ -146,22 +183,47 @@ void Game::renderMenu(Framebuffer& frame) {
         if(index>=first&&index<first+visible) line(5+(index-first)*2,(menuIndex==index?"> ":"  ")+text,menuIndex==index?Color{255,222,139}:white);
     };
     if(screen==Screen::Title) {
-        line(2,"E T E R N A L R P G",{242,210,139});
-        option(0,"Enter the open world"); option(1,"Settings"); option(2,"Exit game");
-        line(13,"Beyond Ashenmere's ruins lie forests, wetlands and ember hills.");
-        line(15,"Explore the land, discover landmarks and defeat the Dragon.");
-        line(17,"Earn XP from battles and exploration. Choose any of five classes.");
-        line(19,"Single-player adventure. No account, server or connection.");
-        line(24,"Seed "+std::to_string(world.seed)+" | Active mods: "+std::to_string(activeMods.size()),muted);
-        if(!activeMods.empty()) line(25,activeMods.back(),muted);
-        line(21,hero.testing?"TESTING POWERS ON - change this in Settings":"NORMAL ADVENTURE - enemies can defeat you",{222,185,121});
-        line(23,"WASD move | Mouse aim | 1-6 cast | M map | Esc/P pause");
+        line(1,"A S H E N M E R E   /   A   S O L O   A D V E N T U R E",{128,174,187});
+        line(2,"E T E R N A L   R P G",{242,210,139});
+        option(0,"New adventure - create world & character"); option(1,"Continue / manage saved worlds");
+        option(2,"Settings"); option(3,"Exit game");
+        line(15,R"(                 /\          /\)",{111,166,183});
+        line(16,R"(            /\ /__\   /\   /__\)",{111,166,183});
+        line(17,R"(       ____/  \|[] |__/  \__|[] |____)",{148,182,190});
+        line(18,R"(      /    /\ |   | /\    |   |    \)", {148,182,190});
+        line(19,R"(     /____/  \|___|/  \___|___|_____\)",{111,166,183});
+        line(21,"No possessions. No destiny. A world waiting for your story.");
+        line(23,"Procedural worlds / 12-digit seeds / 5 classes / 8 save slots",muted);
+        line(25,"Create a normal adventure, or enable God mode for testing.",muted);
+    } else if(screen==Screen::Create) {
+        line(2,"BEGIN YOUR STORY",{242,210,139});
+        option(0,"World name: "+draftWorld+(editingField&&menuIndex==0?"_":""));
+        option(1,"Player name: "+draftName+(editingField&&menuIndex==1?"_":""));
+        option(2,std::string("Class: ")+roleName(draftRole)+"  < >");
+        option(3,"Seed (12 digits): "+draftSeed+(editingField&&menuIndex==3?"_":""));
+        option(4,std::string("God mode: ")+(draftGod?"ON - invulnerable / unlimited MP":"OFF - normal adventure"));
+        option(5,"Create world and begin"); option(6,"Back");
+        line(21,"Start at level 1 with no gold, items or equipped gear.",muted);
+        line(22,"Weapon / clothing / charm: find loot and equip it with I.",muted);
+        line(24,editingField?"Type to edit / Backspace to erase / Enter to finish":"Enter a field to edit it. Left/Right changes class or God mode.",muted);
+    } else if(screen==Screen::Saves) {
+        line(2,"YOUR WORLDS",{242,210,139});
+        for(int i=0;i<8;++i) option(i,std::to_string(i+1)+"  "+saves[size_t(i)].label);
+        option(8,"Back"); line(24,"Select a slot to continue or delete it.",muted);
+    } else if(screen==Screen::SaveActions) {
+        line(2,"SLOT "+std::to_string(selectedSave+1)+" / "+saves[size_t(selectedSave)].label,{242,210,139});
+        option(0,saves[size_t(selectedSave)].exists?"Continue this adventure":"Create a new adventure");
+        option(1,"Delete this save"); option(2,"Back");
+    } else if(screen==Screen::DeleteSave) {
+        line(2,"DELETE SAVED WORLD?",{244,147,119});
+        option(0,"Cancel - keep this world"); option(1,"Delete permanently");
+        line(12,saves[size_t(selectedSave)].label); line(15,"This removes the world and its character progress.",muted);
     } else if(screen==Screen::Paused) {
-        line(2,"PAUSED - the world is stopped",{242,210,139});
+        line(2,"PAUSED / "+worldName,{242,210,139});
         option(0,"Resume adventure"); option(1,"Settings"); option(2,"World map");
-        option(3,"Return to title (keeps this session)"); option(4,"Exit game");
-        line(18,"Level "+std::to_string(hero.level)+" | XP "+std::to_string(hero.xp)+" / "+std::to_string(100+hero.level*25));
-        line(20,"Progress is kept during this session, not after exiting.",muted);
+        option(3,"Save now"); option(4,"Save and return to title"); option(5,"Save and exit");
+        line(20,"Level "+std::to_string(hero.level)+" | XP "+std::to_string(hero.xp)+" / "+std::to_string(100+hero.level*25));
+        line(22,activeSave>=0?"Autosave every 30 seconds. Progress saved on exit.":"Unsaved demo session. Create a world from the title screen.",muted);
     } else if(screen==Screen::Settings) {
         line(2,"SETTINGS",{242,210,139});
         option(0,std::string("Testing powers: ")+(hero.testing?"ON":"OFF"));
@@ -194,11 +256,12 @@ void Game::renderMenu(Framebuffer& frame) {
             line(13+int(i)*2,std::to_string(i+1)+" "+landmarks[i].name+(discovered[i]?" [discovered]":" [unexplored]"));
         }
         mark(hero.pos,'@',white);
-        line(12,"Seed "+std::to_string(world.seed)+" | Chunks "+std::to_string(world.loadedChunkCount())+" | Active enemies "+std::to_string(mobs.size()),muted);
+        line(12,"Seed "+seedText()+" | Chunks "+std::to_string(world.loadedChunkCount())+" | Active enemies "+std::to_string(mobs.size()),muted);
         line(23,"@ You: "+std::to_string(int(hero.pos.x))+", "+std::to_string(int(hero.pos.y))+" | "+world.region(hero.pos));
         line(24,hero.testing?"1-5: home landmarks | T: jump to new wilderness":"1-5: travel to discovered landmarks outside boss combat",muted);
         line(25,message,muted);
     }
+    if(!menuNotice.empty()) line(height-3,menuNotice,{243,184,122});
     line(height-2,screen==Screen::Map?"M / Esc: back":"W/S: select | Enter or click: choose | Esc/P: back",{128,162,174});
 }
 }

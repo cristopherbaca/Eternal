@@ -12,11 +12,11 @@ inline constexpr std::array<Landmark,5> landmarks{{
 struct Tree { Vec2 pos; float height=8,radius=3; bool conifer=false; };
 class World {
 public:
-    uint32_t seed; std::vector<Tree> trees;
+    uint64_t seed; uint32_t terrainSeed; std::vector<Tree> trees;
     using ChunkKey=std::pair<int,int>;
     static constexpr int chunkSize=64,chunkRadius=3;
     GenerationConfig config;
-    explicit World(uint32_t seed=42,GenerationConfig config={});
+    explicit World(uint64_t seed=42,GenerationConfig config={});
     static ChunkKey chunkAt(Vec2 p) { return {int(std::floor(p.x/chunkSize)),int(std::floor(p.y/chunkSize))}; }
     size_t loadedChunkCount() const { return chunks.size(); }
     int biome(Vec2 p) const;

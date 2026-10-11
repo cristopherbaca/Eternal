@@ -15,7 +15,7 @@ int main(int argc,char** argv) {
         bool headless=false,demo=false,native=false,normal=false,fpsExplicit=false,classExplicit=false,noMods=false,listMods=false,positionSet=false;
         er::Vec2 startPosition{};
         int frames=0,w=200,h=60,fps=60;
-        uint32_t seed=42;
+        uint64_t seed=42;
         std::string dump,stats,scene="grass",className="Mage",dataPath,modsPath,name="Senje";
         std::vector<std::string> modIds;
         for(int i=1;i<argc;++i) {
@@ -29,7 +29,7 @@ int main(int argc,char** argv) {
             else if(arg=="--scene") scene=value();
             else if(arg=="--normal") normal=true;
             else if(arg=="--name") name=value().substr(0,20);
-            else if(arg=="--seed") seed=uint32_t(std::stoul(value()));
+            else if(arg=="--seed") seed=std::stoull(value());
             else if(arg=="--class") { className=value(); classExplicit=true; }
             else if(arg=="--position") { startPosition.x=std::stof(value()); startPosition.y=std::stof(value()); positionSet=true; }
             else if(arg=="--mod") modIds.push_back(value());
@@ -76,7 +76,7 @@ int main(int argc,char** argv) {
         if(native) throw std::runtime_error("--window currently requires macOS");
 #endif
         er::Terminal terminal(!headless&&!native);
-        er::Framebuffer frame(w,h);
+        er::Framebuffer frame(w,h),interface(160,50);
         er::Game game(seed,dataPath,mods);
         game.data.applyClass(game.hero,er::parseRole(className));
         game.setScene(scene);
@@ -92,6 +92,7 @@ int main(int argc,char** argv) {
         if(normal) game.setTesting(false);
         if(fpsExplicit) game.presentationFps=fps;
         if(classExplicit) game.data.applyClass(game.hero,er::parseRole(className));
+        game.refreshSaves();
         fps=game.presentationFps;
         game.screen=(headless||demo)?er::Screen::Playing:er::Screen::Title;
         using Clock=std::chrono::steady_clock;
@@ -106,7 +107,7 @@ int main(int argc,char** argv) {
             auto begin=Clock::now();
             auto input=terminal.poll();
 #ifdef __APPLE__
-            if(window) input=window->poll();
+            if(window) input=window->poll(game.screen!=er::Screen::Playing,game.editingField);
 #endif
             game.input(input);
             if(game.quit) break;
@@ -138,7 +139,11 @@ int main(int argc,char** argv) {
             if(!headless) {
                 auto dimensions=terminal.size();
 #ifdef __APPLE__
-                if(window) dimensions=window->size(game.detail);
+                if(window) {
+                    dimensions=window->size(game.detail);
+                    auto [uw,uh]=window->interfaceSize();
+                    if(interface.width!=uw||interface.height!=uh) interface.resize(uw,uh);
+                }
 #endif
                 auto [x,y]=dimensions; x=er::clamp(x,1,500); y=er::clamp(y,1,180);
                 if(x!=frame.width||y!=frame.height) frame.resize(x,y);
@@ -154,10 +159,14 @@ int main(int argc,char** argv) {
             if(window) ready=window->ready();
 #endif
             if(headless||(begin>=nextPresentation&&ready)) {
+#ifdef __APPLE__
+                game.render(frame,frameMs,window?&interface:nullptr);
+#else
                 game.render(frame,frameMs);
+#endif
                 bool submitted=true;
 #ifdef __APPLE__
-                if(window) submitted=window->present(frame);
+                if(window) submitted=window->present(frame,interface);
                 else
 #endif
                 {
@@ -185,6 +194,7 @@ int main(int argc,char** argv) {
                 while(Clock::now()<deadline) std::this_thread::yield();
             }
         }
+        if(!headless&&!demo&&game.activeSave>=0&&!game.saveAdventure()) std::cerr<<"Could not save adventure: "<<game.menuNotice<<"\n";
         if(!headless&&!demo&&!game.saveSettings()) std::cerr<<"Could not save settings in the working directory\n";
         double seconds=std::chrono::duration<double>(Clock::now()-start).count();
         double mean=workTimes.empty()?0:std::accumulate(workTimes.begin(),workTimes.end(),0.0)/workTimes.size();

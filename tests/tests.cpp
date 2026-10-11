@@ -4,6 +4,7 @@
 #include "combat/combat.hpp"
 #include "game.hpp"
 #include "ai/ai.hpp"
+#include "ui/hud.hpp"
 #include <iostream>
 #include <stdexcept>
 #include <fstream>
@@ -52,7 +53,7 @@ int main() { try {
     auto& victim=game.mobs.front(); victim.hp=1; dealDamage(victim,10,game.texts); game.rewards(); check(!game.loot.empty()&&game.hero.xp>0,"kill yields loot and XP");
     int xp=game.hero.xp; game.rewards(); check(game.hero.xp==xp,"kill rewarded once");
     game.hero.pos=game.loot.front().pos; game.collectLoot(); check(!game.hero.inventory.empty(),"nearby loot collected");
-    game.equipSelected(); float power=game.hero.power,armor=game.hero.armor; game.equipSelected(); check(power==game.hero.power&&armor==game.hero.armor,"equipment cannot stack repeatedly");
+    game.equipSelected(); float power=game.hero.power,armor=game.hero.armor; game.equipSelected(); game.equipSelected(); check(power==game.hero.power&&armor==game.hero.armor,"equip and unequip cycles cannot stack stats");
     dealDamage(game.hero,10000,game.texts); game.respawn(); check(game.hero.alive&&game.hero.hp==game.hero.maxHp,"death and respawn");
     game.setScene("boss"); tickDragon(game,1.f/60); check(game.fight.active,"boss activates in arena");
     game.dragon.hp=game.dragon.maxHp*.6f; tickDragon(game,1.f/60); check(game.fight.phase==2,"boss phase 2");
@@ -75,7 +76,7 @@ int main() { try {
     check(solo.party.empty()&&solo.hero.level==1,"new game starts solo at level one");
     solo.screen=Screen::Title; float stoppedTime=solo.time;
     solo.tick(1); check(solo.time==stoppedTime,"title freezes simulation");
-    Input key; key.keys="\r"; solo.input(key); check(solo.screen==Screen::Playing,"title starts adventure");
+    Input key; key.keys="\r"; solo.input(key); check(solo.screen==Screen::Create,"title opens new adventure form"); solo.screen=Screen::Playing;
     key.keys="p1"; solo.input(key); solo.tick(1);
     check(solo.screen==Screen::Paused&&solo.time==stoppedTime&&solo.combat.projectiles.empty(),"pause freezes combat and ignores casts");
     key.keys="s\r"; solo.input(key); check(solo.screen==Screen::Settings,"pause opens settings");
@@ -117,7 +118,7 @@ int main() { try {
     backVisible=compactText.find("> Back")!=std::string::npos; check(backVisible,"settings selection scrolls in compact terminal");
     solo.screen=Screen::Title; solo.menuIndex=0; Framebuffer menuFrame(200,60); solo.render(menuFrame,16);
     Input click; click.click=true; click.mouseX=64; click.mouseY=20; solo.input(click);
-    check(solo.screen==Screen::Playing,"clicking title start enters game");
+    check(solo.screen==Screen::Create,"clicking title opens character and world creation");
 
     auto treeSignature=[](const World& w) { std::ostringstream out; for(const auto& t:w.trees) out<<t.pos.x<<','<<t.pos.y<<','<<t.height<<','<<t.radius<<','<<t.conifer<<';'; return out.str(); };
     World streamed(918),same(918),different(919);
@@ -164,7 +165,7 @@ int main() { try {
     std::filesystem::copy_file(base/"enemies.txt",modRoot/"b/enemies.txt");
     { std::ofstream out(modRoot/"b/enemies.txt",std::ios::app); out<<"\n\"Mod Beast\" 99 4 10 3 12 2 80 20 0 100 120 140\n"; }
     Game modded(42,base,packs);
-    check(modded.data.enemies.size()==4&&modded.data.enemies.back().name=="Mod Beast"&&modded.world.seed==(42u^123u),"mod content and generation settings applied");
+    check(modded.data.enemies.size()==4&&modded.data.enemies.back().name=="Mod Beast"&&modded.world.seed==42u&&modded.world.terrainSeed==(42u^hash(0)^123u),"mod content and generation settings applied");
     bool failed=false; try { loadMods(modRoot,{"../outside"}); } catch(const std::exception&) { failed=true; }
     check(failed,"invalid mod identifier rejected");
     { std::ofstream out(modRoot/"b/world.txt"); out<<"enemies_per_chunk -1\n"; }
@@ -190,7 +191,62 @@ int main() { try {
     diagonal.movementKeys.clear(); movementGame.input(diagonal); check(length(movementGame.velocity)==0,"release all stops movement");
     diagonal.keys="w"; movementGame.input(diagonal); check(length(movementGame.velocity)==0,"released native key does not move from stale key-down events");
     Framebuffer avatar(200,60); movementGame.render(avatar,16);
-    int brightGold=0; for(const auto& c:avatar.cells) if(c.fg==Color{255,204,103}) ++brightGold;
+    int brightGold=0; for(const auto& c:avatar.cells) if(c.fg==Color{178,213,224}) ++brightGold;
     check(brightGold>5,"local player has a distinct bright silhouette");
+    Framebuffer dense(320,100), readable(160,50);
+    movementGame.render(dense,16,&readable);
+    check(movementGame.camera.width==320&&movementGame.uiWidth==160,"UI resolution is independent of world detail");
+    check(readable.at(80,25).glyph==0,"interface leaves the world visible between panels");
+    check(readable.at(2,46).glyph==U'1',"hotbar uses readable interface coordinates");
+    movementGame.screen=Screen::Paused;
+    movementGame.render(dense,16,&readable);
+    Input scaledClick; scaledClick.click=true; scaledClick.mouseX=44; scaledClick.mouseY=15;
+    movementGame.input(scaledClick);
+    check(movementGame.screen==Screen::Playing,"scaled pause menu accepts clicks at displayed coordinates");
+    Framebuffer poseA(200,100),poseB(200,100);
+    Camera animationCamera; animationCamera.width=200; animationCamera.height=100;
+    Entity animated=movementGame.hero; animated.pos=animationCamera.center; animated.velocity={};
+    playerAvatar(poseA,animationCamera,animated,0); playerAvatar(poseB,animationCamera,animated,.6f);
+    check(poseA.cells!=poseB.cells,"idle animation changes the player silhouette");
+    animated.velocity={animated.speed,0}; poseA.clear(); poseB.clear();
+    playerAvatar(poseA,animationCamera,animated,0); playerAvatar(poseB,animationCamera,animated,.23f);
+    check(poseA.cells!=poseB.cells,"walking animation alternates feet and arms");
+    auto saveRoot=std::filesystem::temp_directory_path()/("eternal-saves-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    Game adventure; adventure.saveDirectory=saveRoot; adventure.beginCreation();
+    check(adventure.draftSeed.size()==12&&!adventure.draftGod,"creation supplies 12 digits with God mode opt-in");
+    adventure.draftName="Quinn"; adventure.draftWorld="Northern Reach"; adventure.draftSeed="999999999999";
+    adventure.draftRole=Role::Rogue;
+    check(adventure.createAdventure(),"new world creates its first save");
+    check(adventure.world.seed==999999999999ULL&&adventure.hero.name=="Quinn"&&adventure.hero.role==Role::Rogue,"creation preserves full seed and character choices");
+    check(adventure.hero.gold==0&&adventure.hero.inventory.empty()&&adventure.hero.level==1&&!adventure.hero.testing,"normal adventure starts with nothing at level one");
+    adventure.hero.inventory={0,5}; adventure.inventoryIndex=1; adventure.equipSelected(); adventure.awardXP(300);
+    adventure.hero.pos={120,80}; adventure.hero.hp=17; adventure.hero.gold=31; adventure.discovered[2]=true;
+    adventure.loot.push_back({{121,80},6,2}); adventure.mobs[0].hp=7;
+    check(adventure.saveAdventure(),"progress and equipment saved atomically");
+    Game resumed; resumed.saveDirectory=saveRoot;
+    check(resumed.loadAdventure(0),"save loads into a fresh game");
+    check(resumed.hero.level==adventure.hero.level&&resumed.hero.hp==17&&resumed.hero.gold==31&&resumed.hero.pos.x==120&&resumed.hero.equipment[1]==5,"save restores progression position health and clothing");
+    check(resumed.mobs[0].hp==7&&resumed.loot.back().item==6&&resumed.discovered[2],"save restores enemies dropped items and exploration");
+    resumed.beginCreation(); resumed.draftName="Ada"; resumed.draftWorld="God's Sandbox"; resumed.draftSeed="000000000001"; resumed.draftGod=true;
+    check(resumed.createAdventure()&&resumed.activeSave==1&&resumed.hero.testing&&resumed.seedText()=="000000000001","second save preserves first and keeps leading zero seed display");
+    resumed.refreshSaves(); check(resumed.saves[0].exists&&resumed.saves[1].exists,"browser lists independent saves");
+    check(resumed.deleteAdventure(1)&&std::filesystem::exists(saveRoot/"slot-1.sav")&&!std::filesystem::exists(saveRoot/"slot-2.sav"),"delete removes only the selected slot");
+    { std::ofstream broken(saveRoot/"slot-2.sav"); broken<<"ETERNAL 1 truncated"; }
+    auto oldName=resumed.hero.name;
+    check(!resumed.loadAdventure(1)&&resumed.hero.name==oldName,"truncated save rejected without replacing current game");
+    resumed.beginCreation(); resumed.draftName="Test"; resumed.draftSeed="123";
+    check(!resumed.createAdventure(),"creation rejects non-twelve-digit seeds");
+    World highSeed(1ULL<<32),lowSeed(0);
+    check(highSeed.terrainSeed!=lowSeed.terrainSeed,"high seed digits contribute to procedural generation");
+    resumed.beginCreation(5); resumed.draftName="Slot Six"; resumed.draftWorld="Six"; resumed.draftSeed="123456789012";
+    check(resumed.createAdventure()&&resumed.activeSave==5,"creating from an empty slot uses that exact slot");
+    resumed.refreshSaves(); resumed.screen=Screen::SaveActions; resumed.selectedSave=5; resumed.menuIndex=1;
+    Input confirm; confirm.keys="\r"; resumed.menuInput(confirm);
+    check(resumed.screen==Screen::DeleteSave&&std::filesystem::exists(saveRoot/"slot-6.sav"),"delete action asks for confirmation without removing data");
+    resumed.menuInput(confirm);
+    check(resumed.screen==Screen::Saves&&std::filesystem::exists(saveRoot/"slot-6.sav"),"delete confirmation defaults to cancel");
+    resumed.screen=Screen::DeleteSave; resumed.menuIndex=1; resumed.menuInput(confirm);
+    check(!std::filesystem::exists(saveRoot/"slot-6.sav"),"explicit confirmation deletes selected world");
+    std::filesystem::remove_all(saveRoot);
     std::cout<<checks<<" checks passed: math, renderer, input, combat, AI, progression, boss, menus and deterministic replay\n";
 } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; } }

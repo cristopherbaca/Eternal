@@ -1,5 +1,23 @@
 # Validation status
 
+## Adventure creation and persistent saves
+
+155 core checks pass, including 12-digit seeds, high seed bits, level-one empty starts, optional God mode, fresh-instance save/load of inventory/equipment/stats/enemies/loot/discoveries, slot isolation, leading zeros, invalid/truncated save rejection, exact empty-slot selection, and delete confirmation/cancellation. The native AppKit test also checks mixed-case name entry without triggering gameplay shortcuts. GPU captures show the title and creation form in `screenshots/15-adventure-title.png` and `screenshots/16-create-adventure.png`.
+
+Save version 1 uses eight slots with temporary-file replacement and 30-second autosaves. Active particles/projectiles and temporary status effects are intentionally reset on resume. Terrain is regenerated from the full numeric seed and stored generation configuration; this is not a terrain-edit save format.
+
+## Native controls and player animation
+
+Added a focusable game view, explicit main/key window and first-responder setup after application launch, and click-to-focus. Clicks now use their event coordinates rather than the cursor position sampled afterward. Mouse down/up events are consumed by the game without entering default view handling.
+
+137 core checks pass, including distinct idle and walking poses. The native AppKit event test verifies launch focus, Enter, held WD, partial/full release, pause, scaled-menu clicks, world mouse coordinates, casting, and clearing movement on focus loss. It posts events into the application queue; it does not simulate physical hardware.
+
+## Readable Metal interface and compact player
+
+Fixed vertically reversed atlas tile addressing. Verified the actual Metal output with GPU texture readback, rather than the independent framebuffer preview. Menu and gameplay captures are `screenshots/13-readable-menu.png` and `screenshots/14-readable-game.png`. HUD/menu text uses a separate 8×16-point grid; terrain keeps its existing density and both layers compose in one draw call. The player uses compact silver-blue armor without zoom-based glyph repetition.
+
+135 checks pass, including independent UI/world dimensions, transparent UI cells, hotbar placement, and scaled-menu click routing. A 180-frame Metal boss run with one diagnostic PNG capture submitted 56.2 frames/s; CPU work averaged 5.42 ms (p95 5.56 ms). Submission rate is not measured screen refresh.
+
 ## Playability and frame pacing (latest)
 
 131 checks pass. Added all four held-key diagonals, direction signs, equal straight/diagonal speed, partial and full release, opposite-key cancellation, stale key-down rejection, and local-player contrast checks. The terminal smoke suite passes; its 120-FPS PTY run reached 119.9 submissions/s after the cadence change. This is not terminal display FPS.

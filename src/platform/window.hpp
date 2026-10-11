@@ -8,10 +8,11 @@ class Window {
 public:
     Window();
     ~Window();
-    Input poll();
+    Input poll(bool menu=false,bool textEntry=false);
     std::pair<int,int> size(int detail=1) const;
     bool ready() const;
-    bool present(const Framebuffer& frame);
+    std::pair<int,int> interfaceSize() const;
+    bool present(const Framebuffer& frame,const Framebuffer& interface);
 private:
     struct Impl;
     std::unique_ptr<Impl> impl;

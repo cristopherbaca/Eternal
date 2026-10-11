@@ -12,11 +12,11 @@ void World::pushGrass(Vec2 p,float radius,float strength) {
     }
 }
 Vec2 World::grassBend(Vec2 p) const { int x=clamp(int(std::round(p.x-grassCenter.x))+90,0,180),y=clamp(int(std::round(p.y-grassCenter.y))+70,0,140); return blades[size_t(y*181+x)].bend; }
-World::World(uint32_t s,GenerationConfig settings):seed(s^settings.seedSalt),config(settings) { focus({0,12}); }
+World::World(uint64_t s,GenerationConfig settings):seed(s),terrainSeed(uint32_t(s)^hash(uint32_t(s>>32))^settings.seedSalt),config(settings) { focus({0,12}); }
 float World::terrainNoise(Vec2 p,uint32_t salt,float scale) const {
     float fx=p.x/scale,fy=p.y/scale; int x=int(std::floor(fx)),y=int(std::floor(fy));
     float u=fx-x,v=fy-y; u=u*u*(3-2*u); v=v*v*(3-2*v);
-    float a=noise(x,y,seed+salt),b=noise(x+1,y,seed+salt),c=noise(x,y+1,seed+salt),d=noise(x+1,y+1,seed+salt);
+    float a=noise(x,y,terrainSeed+salt),b=noise(x+1,y,terrainSeed+salt),c=noise(x,y+1,terrainSeed+salt),d=noise(x+1,y+1,terrainSeed+salt);
     return (a+(b-a)*u)*(1-v)+(c+(d-c)*u)*v;
 }
 int World::biome(Vec2 p) const {
@@ -30,11 +30,11 @@ int World::biome(Vec2 p) const {
     return climate<.3f?1:climate>.7f?2:terrainNoise(p,157,config.biomeScale)<.4f?3:0;
 }
 bool World::treeAt(int x,int y,Tree& tree) const {
-    if(config.treeDensity<=0||noise(x,y,seed+8)>config.treeDensity) return false;
-    Vec2 p{float(x*8)+noise(x,y,seed)*6,float(y*8)+noise(y,x,seed+1)*6};
+    if(config.treeDensity<=0||noise(x,y,terrainSeed+8)>config.treeDensity) return false;
+    Vec2 p{float(x*8)+noise(x,y,terrainSeed)*6,float(y*8)+noise(y,x,terrainSeed+1)*6};
     for(const auto& landmark:landmarks) if(distance(p,landmark.pos)<7) return false;
     if(water(p)||road(p)||(std::abs(p.x)<23&&p.y>-24&&p.y<4)||distance(p,{0,12})<9||distance(p,{30,-25})<16) return false;
-    tree={p,6+noise(x,y,seed+3)*7,2+noise(y,x,seed+9)*2,biome(p)==1||noise(x,y,seed+4)>.6f};
+    tree={p,6+noise(x,y,terrainSeed+3)*7,2+noise(y,x,terrainSeed+9)*2,biome(p)==1||noise(x,y,terrainSeed+4)>.6f};
     return true;
 }
 void World::streamChunks(Vec2 pos) {
@@ -104,7 +104,7 @@ Vec2 World::move(Vec2 p,Vec2 d) const {
 void World::render(Scene& s,float time) const {
     const Camera& c=s.camera;
     for(int y=0;y<c.height;++y) for(int x=0;x<c.width;++x) {
-        Vec2 p=c.unproject({float(x),float(y)}); int gx=int(std::floor(p.x*3)),gy=int(std::floor(p.y*3)); float n=noise(gx,gy,seed);
+        Vec2 p=c.unproject({float(x),float(y)}); int gx=int(std::floor(p.x*3)),gy=int(std::floor(p.y*3)); float n=noise(gx,gy,terrainSeed);
         float shadow=shadows[size_t(clamp(int(p.y-grassCenter.y)+70,0,140)*181+clamp(int(p.x-grassCenter.x)+90,0,180))];
         if(water(p)) { s.put(x,y,p,0,{17,28,43},n>.95f?U'~':U' ',p.y-10); continue; }
         if(road(p)) {
@@ -131,14 +131,14 @@ void World::render(Scene& s,float time) const {
         float ax=std::abs(x); bool arch=ax<3.2f&&z<4.0f+std::sqrt(std::max(0.f,10.24f-x*x));
         bool slit=(std::abs(x+13)<.7f||std::abs(x-13)<.7f)&&z>4&&z<7;
         if(arch||slit||(z>8.4f&&int((x+21)/2.6f)%2==0)) continue;
-        float n=noise(int(x*4),int(z*4),seed); bool mortar=int(z*3)%4==0;
+        float n=noise(int(x*4),int(z*4),terrainSeed); bool mortar=int(z*3)%4==0;
         Color col=mix({58,69,81},{121,136,143},n); if(mortar) col=col*.65f;
         s.point({x,wallY},z,col,mortar?U'=':(n<.4f?0:U"0O8o@#"[int(n*5.99f)]),{0,-1,.2f});
         if(((x>6&&x<7.4f)||(x<-6&&x>-7.4f))&&z>4&&z<8) s.point({x,wallY-.04f},z,{135,40,48},U'|');
     }
     for(float x:{-21.f,21.f}) for(float y=-22;y<=-10;y+=.4f/c.scale()) for(float z=0;z<11;z+=.45f/c.scale()) {
         if(z>9.5f&&int(y+22)%4<2) continue;
-        float n=noise(int(y*5),int(z*3),seed); s.point({x,y},z,mix({45,61,76},{100,120,128},n),U"08#o="[int(n*4.99f)],{1,0,.3f});
+        float n=noise(int(y*5),int(z*3),terrainSeed); s.point({x,y},z,mix({45,61,76},{100,120,128},n),U"08#o="[int(n*4.99f)],{1,0,.3f});
     }
     for(Vec2 p:{Vec2{-4,-9.7f},Vec2{4,-9.7f}}) {
         s.lights.push_back({p,4,{255,138,47},12,1.6f+.15f*std::sin(time*11+p.x)});
@@ -153,7 +153,7 @@ void World::render(Scene& s,float time) const {
         Vec2 base=c.project(t.pos); float ht=t.height*c.scale()*1.5f,rx=t.radius*c.scale()*2.2f;
         if(base.x+rx<0||base.x-rx>c.width||base.y<0||base.y-ht>c.height) continue;
         for(int yy=int(base.y-ht);yy<=int(base.y);++yy) for(int xx=int(base.x-rx);xx<=int(base.x+rx);++xx) {
-            float v=(base.y-yy)/ht,u=(xx-base.x)/rx; bool leaf=false; float n=noise(xx-int(base.x),yy-int(base.y),uint32_t(int(t.pos.x*13))+seed);
+            float v=(base.y-yy)/ht,u=(xx-base.x)/rx; bool leaf=false; float n=noise(xx-int(base.x),yy-int(base.y),uint32_t(int(t.pos.x*13))+terrainSeed);
             if(t.conifer) { float tier=std::fmod(v*4,1.f); leaf=v>.16f&&std::abs(u)<(1-v)*(.65f+.5f*tier); }
             else { float q=(v-.61f)/.37f; leaf=u*u+q*q<1+n*.2f; }
             if(leaf&&n>.08f) {

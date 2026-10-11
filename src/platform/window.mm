@@ -4,12 +4,23 @@
 #import <QuartzCore/CAMetalLayer.h>
 #import <CoreText/CoreText.h>
 #include <array>
+#include <cstdlib>
 #include <stdexcept>
+
+// A real input view is needed for click-to-focus and keyboard responder routing.
+@interface ERGameView : NSView
+@end
+@implementation ERGameView
+- (BOOL)acceptsFirstResponder { return YES; }
+- (BOOL)acceptsFirstMouse:(NSEvent*)event { (void)event; return YES; }
+- (void)mouseDown:(NSEvent*)event { (void)event; [self.window makeFirstResponder:self]; }
+@end
 
 @interface ERWindow : NSWindow
 @end
 @implementation ERWindow
 - (BOOL)canBecomeKeyWindow { return YES; }
+- (BOOL)canBecomeMainWindow { return YES; }
 @end
 
 namespace er {
@@ -20,10 +31,10 @@ struct Window::Impl {
     id<MTLCommandQueue> queue;
     id<MTLRenderPipelineState> pipeline;
     id<MTLTexture> atlas;
-    id<MTLBuffer> cells;
+    id<MTLBuffer> cells,interface;
     id<MTLCommandBuffer> pending;
     std::array<bool,128> held{};
-    int cols=320,rows=100;
+    int cols=320,rows=100,uiCols=160,uiRows=50;
 };
 static const char* shader=R"(
 #include <metal_stdlib>
@@ -36,12 +47,16 @@ vertex Vertex vertices(uint id [[vertex_id]]) {
 }
 float3 rgb(uint v) { return float3(v&255,(v>>8)&255,(v>>16)&255)/255.0; }
 fragment float4 draw(Vertex in [[stage_in]], constant Cell* cells [[buffer(0)]],
-                     constant uint2& grid [[buffer(1)]], texture2d<float> atlas [[texture(0)]]) {
+                     constant uint2& grid [[buffer(1)]], texture2d<float> atlas [[texture(0)]],
+                     constant Cell* interface [[buffer(2)]], constant uint2& uiGrid [[buffer(3)]]) {
     float2 p=clamp(in.uv,float2(0),float2(0.999999))*float2(grid);
     uint2 cell=uint2(p);
     Cell c=cells[cell.y*grid.x+cell.x];
+    float2 ui=clamp(in.uv,float2(0),float2(0.999999))*float2(uiGrid);
+    Cell overlay=interface[uint(ui.y)*uiGrid.x+uint(ui.x)];
+    if(overlay.glyph!=0) { c=overlay; p=ui; }
     float2 tile=float2(c.glyph%16,c.glyph/16);
-    float2 local=fract(p); local.y=1-local.y;
+    float2 local=fract(p);
     constexpr sampler sample(filter::linear,address::clamp_to_edge);
     float a=atlas.sample(sample,(tile*float2(16,24)+float2(0.5)+local*float2(15,23))/float2(256,432)).r;
     return float4(mix(rgb(c.bg),rgb(c.fg),a),1);
@@ -77,7 +92,9 @@ Window::Window():impl(std::make_unique<Impl>()) {
             if(ch<32||ch==127) continue;
             CGGlyph glyph=0; CTFontGetGlyphsForCharacters(font,&ch,&glyph,1);
             CGSize advance{}; CTFontGetAdvancesForGlyphs(font,kCTFontOrientationHorizontal,&glyph,&advance,1);
-            CGPoint point=CGPointMake((i%16)*16+(16-advance.width)/2,(i/16)*24+5);
+            // CoreGraphics draws from the bottom; Metal texture rows start at the top.
+            // Flip the atlas tile placement, not just each glyph within its tile.
+            CGPoint point=CGPointMake((i%16)*16+(16-advance.width)/2,432-(i/16+1)*24+5);
             CTFontDrawGlyphs(font,&glyph,&point,1,context);
         }
         CFRelease(font); CGContextRelease(context);
@@ -91,11 +108,15 @@ Window::Window():impl(std::make_unique<Impl>()) {
         v.window.title=@"EternalRPG — Metal ASCII";
         v.window.contentMinSize=NSMakeSize(640,400);
         v.layer=[CAMetalLayer layer]; v.layer.device=v.device;
-        v.layer.pixelFormat=MTLPixelFormatBGRA8Unorm; v.layer.framebufferOnly=YES;
+        v.layer.pixelFormat=MTLPixelFormatBGRA8Unorm; v.layer.framebufferOnly=std::getenv("ER_CAPTURE")?NO:YES;
         v.layer.maximumDrawableCount=2; v.layer.displaySyncEnabled=YES;
+        v.window.contentView=[[ERGameView alloc] initWithFrame:NSMakeRect(0,0,rect.size.width,rect.size.height)];
         v.window.contentView.wantsLayer=YES; v.window.contentView.layer=v.layer;
+        [NSApp finishLaunching];
+        [NSApp activateIgnoringOtherApps:YES];
+        [[NSRunningApplication currentApplication] activateWithOptions:0];
         [v.window center]; [v.window makeKeyAndOrderFront:nil];
-        [NSApp finishLaunching]; [NSApp activateIgnoringOtherApps:YES];
+        [v.window makeMainWindow]; [v.window makeFirstResponder:v.window.contentView];
     }
 }
 Window::~Window() { @autoreleasepool { [impl->pending waitUntilCompleted]; [impl->window close]; } }
@@ -103,17 +124,21 @@ std::pair<int,int> Window::size(int detail) const {
     NSSize s=impl->window.contentView.bounds.size;
     return {clamp(int(s.width/(detail==0?6:detail==2?3:4)),40,500),clamp(int(s.height/(detail==0?12:detail==2?6:8)),16,180)};
 }
-Input Window::poll() {
+std::pair<int,int> Window::interfaceSize() const {
+    NSSize s=impl->window.contentView.bounds.size;
+    return {clamp(int(s.width/8),40,250),clamp(int(s.height/16),16,100)};
+}
+Input Window::poll(bool menu,bool textEntry) {
     @autoreleasepool {
         Input input; input.heldMovement=true; auto& v=*impl;
-        NSEvent* e;
+        NSEvent* e; NSPoint clickPoint{}; bool clicked=false;
         while((e=[NSApp nextEventMatchingMask:NSEventMaskAny untilDate:[NSDate distantPast] inMode:NSDefaultRunLoopMode dequeue:YES])) {
             bool consumed=false;
             if(e.window==v.window) {
                 if(e.type==NSEventTypeKeyDown||e.type==NSEventTypeKeyUp) {
                     NSString* chars=[e charactersIgnoringModifiers];
                     unichar key=chars.length?[chars characterAtIndex:0]:0;
-                    if(key>='A'&&key<='Z') key+=32;
+                    if(!textEntry&&key>='A'&&key<='Z') key+=32;
                     // Always process key-up, even if a modifier changed while held.
                     char movement=e.keyCode==13?'w':e.keyCode==0?'a':e.keyCode==1?'s':e.keyCode==2?'d':0;
                     if(movement&&e.type==NSEventTypeKeyUp) v.held[size_t(movement)]=false;
@@ -129,7 +154,14 @@ Input Window::poll() {
                         consumed=true;
                     }
                 }
-                if(e.type==NSEventTypeLeftMouseDown) input.click=true;
+                if(e.type==NSEventTypeLeftMouseDown) {
+                    [NSApp activateIgnoringOtherApps:YES];
+                    [v.window makeKeyAndOrderFront:nil];
+                    [v.window makeFirstResponder:v.window.contentView];
+                    clickPoint=[v.window.contentView convertPoint:e.locationInWindow fromView:nil];
+                    clicked=true; input.click=true; consumed=true;
+                }
+                if(e.type==NSEventTypeLeftMouseUp) consumed=true;
                 if(e.type==NSEventTypeScrollWheel) input.scroll+=e.scrollingDeltaY>0?1:e.scrollingDeltaY<0?-1:0;
             }
             if(!consumed) [NSApp sendEvent:e];
@@ -137,9 +169,9 @@ Input Window::poll() {
         if(!v.window.keyWindow) v.held.fill(false);
         // Hardware key-up events remove the terminal keyboard-repeat delay.
         for(char k:std::string("wasd")) if(v.held[size_t(k)]) input.movementKeys+=k;
-        if(v.window.keyWindow) {
-            NSPoint mouse=[v.window mouseLocationOutsideOfEventStream];
-            auto [cols,rows]=std::pair<int,int>{v.cols,v.rows}; NSSize bounds=v.window.contentView.bounds.size;
+        if(v.window.keyWindow||clicked) {
+            NSPoint mouse=clicked?clickPoint:[v.window.contentView convertPoint:[v.window mouseLocationOutsideOfEventStream] fromView:nil];
+            auto [cols,rows]=std::pair<int,int>{menu?v.uiCols:v.cols,menu?v.uiRows:v.rows}; NSSize bounds=v.window.contentView.bounds.size;
             if(mouse.x>=0&&mouse.y>=0&&mouse.x<bounds.width&&mouse.y<bounds.height) {
                 input.mouseX=int(mouse.x/bounds.width*cols);
                 input.mouseY=int((bounds.height-mouse.y)/bounds.height*rows);
@@ -150,10 +182,10 @@ Input Window::poll() {
     }
 }
 bool Window::ready() const { return !impl->pending||impl->pending.status>=MTLCommandBufferStatusCompleted; }
-bool Window::present(const Framebuffer& frame) {
+bool Window::present(const Framebuffer& frame,const Framebuffer& interface) {
     @autoreleasepool {
         auto& v=*impl;
-        v.cols=frame.width; v.rows=frame.height;
+        v.cols=frame.width; v.rows=frame.height; v.uiCols=interface.width; v.uiRows=interface.height;
         // At most one GPU frame in flight; skip stale presentation opportunities.
         if(v.pending&&v.pending.status<MTLCommandBufferStatusCompleted) return false;
         if(v.pending.status==MTLCommandBufferStatusError) throw std::runtime_error("Metal frame failed");
@@ -164,15 +196,18 @@ bool Window::present(const Framebuffer& frame) {
         id<CAMetalDrawable> drawable=[v.layer nextDrawable];
         if(!drawable) return false;
         struct GPUCell { uint32_t glyph,fg,bg,pad; };
-        size_t bytes=frame.cells.size()*sizeof(GPUCell);
-        if(!v.cells||v.cells.length<bytes) v.cells=[v.device newBufferWithLength:bytes options:MTLResourceStorageModeShared];
-        auto* cells=static_cast<GPUCell*>(v.cells.contents);
-        auto packed=[](Color c){return uint32_t(c.r)|(uint32_t(c.g)<<8)|(uint32_t(c.b)<<16);};
-        for(size_t i=0;i<frame.cells.size();++i) {
-            const auto& c=frame.cells[i]; uint32_t g=c.glyph;
-            g=g<128?g:(g>=0x2500&&g<0x25a0?128+g-0x2500:uint32_t('?'));
-            cells[i]={g,packed(c.fg),packed(c.bg),0};
-        }
+        auto upload=[&](const Framebuffer& source,id<MTLBuffer> __strong& buffer) {
+            size_t bytes=source.cells.size()*sizeof(GPUCell);
+            if(!buffer||buffer.length<bytes) buffer=[v.device newBufferWithLength:bytes options:MTLResourceStorageModeShared];
+            auto* cells=static_cast<GPUCell*>(buffer.contents);
+            auto packed=[](Color c){return uint32_t(c.r)|(uint32_t(c.g)<<8)|(uint32_t(c.b)<<16);};
+            for(size_t i=0;i<source.cells.size();++i) {
+                const auto& c=source.cells[i]; uint32_t g=c.glyph;
+                g=g<128?g:(g>=0x2500&&g<0x25a0?128+g-0x2500:uint32_t('?'));
+                cells[i]={g,packed(c.fg),packed(c.bg),0};
+            }
+        };
+        upload(frame,v.cells); upload(interface,v.interface);
         auto pass=[MTLRenderPassDescriptor renderPassDescriptor];
         pass.colorAttachments[0].texture=drawable.texture;
         pass.colorAttachments[0].loadAction=MTLLoadActionDontCare;
@@ -183,8 +218,33 @@ bool Window::present(const Framebuffer& frame) {
         uint32_t grid[]={uint32_t(frame.width),uint32_t(frame.height)};
         [encoder setFragmentBytes:grid length:sizeof(grid) atIndex:1];
         [encoder setFragmentTexture:v.atlas atIndex:0];
+        [encoder setFragmentBuffer:v.interface offset:0 atIndex:2];
+        uint32_t uiGrid[]={uint32_t(interface.width),uint32_t(interface.height)};
+        [encoder setFragmentBytes:uiGrid length:sizeof(uiGrid) atIndex:3];
         [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
-        [encoder endEncoding]; [command presentDrawable:drawable]; [command commit];
+        [encoder endEncoding];
+        const char* capture=std::getenv("ER_CAPTURE");
+        id<MTLBuffer> pixels=nil;
+        NSUInteger width=drawable.texture.width,height=drawable.texture.height,stride=((width*4+255)/256)*256;
+        if(capture) {
+            pixels=[v.device newBufferWithLength:stride*height options:MTLResourceStorageModeShared];
+            auto copy=[command blitCommandEncoder];
+            [copy copyFromTexture:drawable.texture sourceSlice:0 sourceLevel:0 sourceOrigin:MTLOriginMake(0,0,0)
+                       sourceSize:MTLSizeMake(width,height,1) toBuffer:pixels destinationOffset:0
+              destinationBytesPerRow:stride destinationBytesPerImage:stride*height];
+            [copy endEncoding];
+        }
+        [command presentDrawable:drawable]; [command commit];
+        if(capture) {
+            [command waitUntilCompleted];
+            CGColorSpaceRef color=CGColorSpaceCreateDeviceRGB();
+            CGContextRef context=CGBitmapContextCreate(pixels.contents,width,height,8,stride,color,kCGBitmapByteOrder32Little|kCGImageAlphaNoneSkipFirst);
+            CGImageRef image=CGBitmapContextCreateImage(context);
+            NSBitmapImageRep* bitmap=[[NSBitmapImageRep alloc] initWithCGImage:image];
+            [[bitmap representationUsingType:NSBitmapImageFileTypePNG properties:@{}] writeToFile:[NSString stringWithUTF8String:capture] atomically:YES];
+            CGImageRelease(image); CGContextRelease(context); CGColorSpaceRelease(color);
+            unsetenv("ER_CAPTURE");
+        }
         v.pending=command;
         return true;
     }

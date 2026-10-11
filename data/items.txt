@@ -4,3 +4,6 @@
 2 "Moonlit Talisman" 2 4 10 65
 3 "Dragonfang" 0 6 32 700
 4 "Emberguard Boots" 1 28 4 550
+5 "Linen Tunic" 1 5 0 12
+6 "Iron Sword" 0 0 14 48
+7 "Leather Coat" 1 18 0 75

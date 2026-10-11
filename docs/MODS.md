@@ -24,7 +24,7 @@ name "My World"
 
 Put `my_world` on its own line in `mods/enabled.txt`, then restart. Lines beginning with `#` are comments. You can instead append packs for one run with `--mod my_world`. Multiple `--mod` flags are supported. `--mods-dir PATH` selects another pack directory. `--no-mods` disables all packs, including command-line packs; `--list-mods` shows active manifest names and exits. The default root is `./mods`, falling back to the source project's mods folder when launched from another directory.
 
-Enabled-file order comes first, then command-line packs. Duplicate IDs are loaded only once, at their first occurrence. Later packs override earlier packs. The title displays the active count and final pack name. Changes take effect after restart; hot reloading is not supported.
+Enabled-file order comes first, then command-line packs. Duplicate IDs are loaded only once, at their first occurrence. Later packs override earlier packs. The command-line `--list-mods` option lists active packs. Changes take effect after restart; hot reloading is not supported.
 
 ## Generation settings
 
@@ -38,7 +38,7 @@ Enabled-file order comes first, then command-line packs. Duplicate IDs are loade
 | `enemies_per_chunk` | 3 | Integer 0–8 | Candidate enemy spawns per 64×64 chunk |
 | `respawn_seconds` | 45 | 5–600 | Delay before defeated enemies replenish |
 | `level_distance` | 120 | 30–10000 | Distance per additional enemy level; caps at level 100 |
-| `seed_salt` | 0 | Integer 0–4294967295 | XORed with the selected world seed |
+| `seed_salt` | 0 | Integer 0–4294967295 | Mixed with both halves of the selected world seed |
 
 For example:
 
@@ -64,7 +64,7 @@ See `mods/wild_frontier/` for a working pack: it replaces the enemy table, prese
 
 ## Determinism and current limits
 
-The generator combines the world seed, mod seed salt and world coordinates. Terrain is reproducible for the same build, seed and effective mod configuration regardless of visitation order. Changing any of those can change the layout. Configurations are not save-file compatible across arbitrary changes because persistent worlds are not yet implemented.
+The generator combines the world seed, mod seed salt and world coordinates. Terrain is reproducible for the same build, seed and effective mod configuration regardless of visitation order. Changing any of those can change the layout. Adventure saves store generation settings and require matching enabled mod names and item tables. Keep the same pack versions for a continued world; arbitrary changes to abilities/enemies are not migrated.
 
 Only nearby chunks and encounters are retained. Terrain is regenerated on return; enemy kill timers are remembered until their respawn deadline, but surviving distant enemies return with fresh state. Distant dropped loot is discarded. The five named origin landmarks remain fast-travel anchors; the local map and testing-mode `T` jump help inspect the generated frontier.
 
