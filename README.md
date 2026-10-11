@@ -4,7 +4,7 @@ A single-player ASCII RPG in C++17 with a seed-based, streamed procedural world.
 
 ![Single-player introduction](docs/screenshots/11-single-player-title.png)
 
-On this Mac, select **EternalRPG — GPU Window (recommended)** in VS Code's **Run and Debug** dropdown and click **▶**. Press **Enter** on the introduction screen to start. The original external-terminal launch remains available.
+On this Mac, select **EternalRPG — GPU Window (recommended)** in VS Code's **Run and Debug** dropdown and click **▶**. Press **Enter** on the introduction screen to start. The generic **EternalRPG: Run** task also launches the GPU window on macOS. The explicitly named external-terminal launch remains available. Use **Run → Run Without Debugging** for normal play.
 
 ```sh
 cmake -B build
@@ -62,6 +62,8 @@ Mods are loaded from `mods/`. Add a folder name to [`mods/enabled.txt`](mods/ena
 ```
 
 The included **Wild Frontier** example is disabled by default. It changes forest/lake generation and enemy density, and adds a Frontier Stalker. Mods can override generation parameters and the existing content tables. These are declarative data packs, not arbitrary executable plugins or scripts. See the [mod creation guide](docs/MODS.md) for the format, load order, supported fields and limits.
+
+Movement in the GPU window reads the complete held-key state: WA, WD, AS and SD move diagonally at the same speed as straight movement. Releasing one key retains the other direction, and opposing keys cancel. The local player has an ivory/gold outfit, coral cape, cyan weapon and dark outline, with a marker at their feet. The silhouette stays visible when scenery overlaps it; muted green foliage and warm enemy accents distinguish terrain from characters.
 
 The Metal backend renders the same RGB glyph framebuffer using a cached Menlo atlas and one GPU draw call. It avoids ANSI terminal output and handles held movement keys and key releases directly. Use **Comfort**, **Detailed**, or **Dense** in Settings to balance readable text against glyph density. The displayed `Sent fps` measures submissions, not verified display scanout.
 

@@ -108,7 +108,7 @@ void World::render(Scene& s,float time) const {
         float shadow=shadows[size_t(clamp(int(p.y-grassCenter.y)+70,0,140)*181+clamp(int(p.x-grassCenter.x)+90,0,180))];
         if(water(p)) { s.put(x,y,p,0,{17,28,43},n>.95f?U'~':U' ',p.y-10); continue; }
         if(road(p)) {
-            char32_t glyph=U"o0QOa.:"[int(n*6.99f)]; Color color=mix({66,81,90},{135,150,148},n);
+            char32_t glyph=U"o0QOa.:"[int(n*6.99f)]; Color color=mix({80,81,88},{145,139,129},n);
             if((gy%4+4)%4==0) { glyph=U'-'; color=color*.65f; }
             s.put(x,y,p,0,color*shadow,glyph,p.y-10); continue;
         }
@@ -117,7 +117,7 @@ void World::render(Scene& s,float time) const {
         Vec2 bend=grassBend(p); wind+=bend.x*2;
         char32_t blade=wind>.45f?U'/':wind<-.45f?U'\\':U'|'; if(n<.2f) blade=U','; else if(n>.97f) blade=U'.';
         if(length(bend)>.55f) blade=std::abs(bend.x)>.3f?U'-':U',';
-        Color color=n>.97f?Color{166,192,169}:mix({22,53,47},{65,116,84},n);
+        Color color=n>.97f?Color{166,192,169}:mix({30,50,43},{69,97,70},n);
         int climate=biome(p);
         if(climate==2) color=mix(color,{135,95,62},.4f);
         else if(climate==1) color=mix(color,{106,159,178},.35f);
@@ -157,7 +157,7 @@ void World::render(Scene& s,float time) const {
             if(t.conifer) { float tier=std::fmod(v*4,1.f); leaf=v>.16f&&std::abs(u)<(1-v)*(.65f+.5f*tier); }
             else { float q=(v-.61f)/.37f; leaf=u*u+q*q<1+n*.2f; }
             if(leaf&&n>.08f) {
-                Color col=t.conifer?mix({43,87,100},{141,200,204},n):mix({20,57,60},{84,155,136},n);
+                Color col=t.conifer?mix({40,64,84},{97,140,156},n):mix({27,48,39},{80,119,76},n);
                 char32_t glyph=t.conifer?U'^':U"oaOQd0"[int(n*5.99f)];
                 s.put(xx,yy,t.pos,v*t.height,col,glyph,t.pos.y+v*.1f,{u,-.3f,.8f});
             } else if(std::abs(u)<.13f&&v<.65f) s.put(xx,yy,t.pos,v*t.height,{73,76,67},U'|',t.pos.y,{0,-1,.3f});

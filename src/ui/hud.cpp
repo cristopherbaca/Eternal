@@ -12,13 +12,38 @@ void bar(Framebuffer& f,int x,int y,int w,float v,float max,Color color) {
 }
 void nameLabel(Framebuffer& f,const Camera& c,const Entity& e,bool targeted) {
     if(!e.alive) return;
-    Vec2 p=c.project(e.pos); int y=int(p.y)-int((e.kind==Kind::Boss?16:7)*c.scale()); int x=int(p.x)-int(e.name.size()/2);
+    Vec2 p=c.project(e.pos); int y=int(p.y)-int((e.kind==Kind::Boss?16:e.kind==Kind::Player?9:7)*c.scale()); int x=int(p.x)-int(e.name.size()/2);
     if(y<2||y>=f.height-4) return;
-    f.text(x,y,e.name,targeted?Color{255,219,150}:white);
+    f.text(x,y,e.name,e.kind==Kind::Player?Color{255,223,133}:targeted?Color{255,164,138}:white);
     if(e.hp<e.maxHp||targeted) bar(f,int(p.x)-3,y+1,7,e.hp,e.maxHp,{200,66,62});
 }
 void floatingLabels(Framebuffer& f,const Camera& c,const std::vector<FloatingText>& texts) {
     for(const auto& t:texts) { Vec2 p=c.project(t.pos); f.text(int(p.x)-int(t.text.size()/2),int(p.y)-7-int((t.maxLife-t.life)*4),t.text,t.color*clamp(t.life/.5f,0.f,1.f)); }
+}
+void playerAvatar(Framebuffer& f,const Camera& camera,const Entity& hero,float time) {
+    // A warm, outlined local-player silhouette remains readable behind canopies.
+    const char* rows[]={R"(    ^    )",R"(   /O\   )",R"(  /[#]\ |)",R"( / /#\ \|)",R"(   |#|  |)",R"(   / \   )",R"(  /   \  )"};
+    Vec2 base=camera.project(hero.pos); float scale=std::max(.85f,camera.scale());
+    struct Mark { int x,y; char32_t glyph; Color color; };
+    std::vector<Mark> marks;
+    for(int y=0;y<int(std::ceil(7*scale));++y) for(int x=0;x<int(std::ceil(9*scale));++x) {
+        int sy=clamp(int(y/scale),0,6),sx=clamp(int(x/scale),0,8);
+        char32_t glyph=rows[sy][sx]; if(glyph==U' ') continue;
+        if(sy==0&&hero.role==Role::Warrior) glyph=U'@';
+        if(sy==0&&hero.role==Role::Cleric) glyph=U'+';
+        if(sx==8&&hero.role==Role::Archer) glyph=U')';
+        Color color=sy==1?Color{255,249,224}:sx==8?Color{125,232,255}:Color{255,204,103};
+        if((sy==2||sy==3)&&sx!=4&&sx!=8) color={247,119,115};
+        if(sy>=5) color={242,225,174};
+        int stride=sy==6&&length(hero.velocity)>0?int(std::sin(time*12)*scale*.5f):0;
+        marks.push_back({int(base.x)+x-int(4*scale)+stride,int(base.y)-int(7*scale)+y,glyph,color});
+    }
+    for(const auto& mark:marks) for(int dy=-1;dy<=1;++dy) for(int dx=-1;dx<=1;++dx) {
+        int x=mark.x+dx,y=mark.y+dy;
+        if(x>=0&&y>=0&&x<f.width&&y<f.height) { auto c=f.at(x,y); f.put(x,y,c.glyph,c.fg*.2f); }
+    }
+    for(const auto& mark:marks) f.put(mark.x,mark.y,mark.glyph,mark.color);
+    f.text(int(base.x)-2,int(base.y)+1,"- ^ -",{255,204,103});
 }
 void hud(Framebuffer& f,const Entity& hero,const std::vector<Entity>& party,const Entity* boss,float ms) {
     if(f.width<80||f.height<28) {

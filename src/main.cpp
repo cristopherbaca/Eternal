@@ -95,7 +95,7 @@ int main(int argc,char** argv) {
         fps=game.presentationFps;
         game.screen=(headless||demo)?er::Screen::Playing:er::Screen::Title;
         using Clock=std::chrono::steady_clock;
-        auto start=Clock::now(),last=start,lastPresented=start,nextPresentation=start;
+        auto start=Clock::now(),last=start,lastPresented=start,nextPresentation=start,nextInput=start;
         float frameMs=1000.f/fps,accumulator=0,nextShot=0,nextArea=1.5f;
         int count=0;
         uint64_t bytes=0;
@@ -149,11 +149,11 @@ int main(int argc,char** argv) {
                 accumulator+=headless?1.f/60:elapsed;
                 while(accumulator>=1.f/60) { game.tick(1.f/60); accumulator-=1.f/60; }
             }
-            if(headless||(begin>=nextPresentation&&terminal.frameReady())) {
-                if(count>0&&!headless) {
-                    float interval=std::chrono::duration<float,std::milli>(begin-lastPresented).count();
-                    frameMs=frameMs*.9f+interval*.1f;
-                }
+            bool ready=terminal.frameReady();
+#ifdef __APPLE__
+            if(window) ready=window->ready();
+#endif
+            if(headless||(begin>=nextPresentation&&ready)) {
                 game.render(frame,frameMs);
                 bool submitted=true;
 #ifdef __APPLE__
@@ -165,14 +165,22 @@ int main(int argc,char** argv) {
                     bytes+=output.size();
                     terminal.present(output);
                 }
-                lastPresented=begin;
+                if(submitted) {
+                    if(count>0&&!headless) {
+                        float interval=std::chrono::duration<float,std::milli>(begin-lastPresented).count();
+                        frameMs=frameMs*.9f+interval*.1f;
+                    }
+                    lastPresented=begin;
+                }
                 // Keep the target cadence, but never burst queued old frames.
                 nextPresentation=std::max(nextPresentation+period,Clock::now());
                 if(submitted) ++count;
                 workTimes.push_back(std::chrono::duration<double,std::milli>(Clock::now()-begin).count());
             }
             if(!headless) {
-                auto deadline=begin+inputPeriod;
+                nextInput+=inputPeriod;
+                if(nextInput<Clock::now()) nextInput=Clock::now();
+                auto deadline=nextInput;
                 std::this_thread::sleep_until(deadline-std::chrono::microseconds(300));
                 while(Clock::now()<deadline) std::this_thread::yield();
             }

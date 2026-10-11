@@ -1,6 +1,16 @@
 # Validation status
 
-## Procedural world and mods (latest)
+## Playability and frame pacing (latest)
+
+131 checks pass. Added all four held-key diagonals, direction signs, equal straight/diagonal speed, partial and full release, opposite-key cancellation, stale key-down rejection, and local-player contrast checks. The terminal smoke suite passes; its 120-FPS PTY run reached 119.9 submissions/s after the cadence change. This is not terminal display FPS.
+
+A native 180-frame, 320×100 boss demo recorded 57.132 submitted FPS, 5.055 ms mean CPU work and 5.597 ms p95. The application no longer resets the Metal drawable size unless the window changes size, avoids rendering while the prior GPU command is pending, and uses an accumulated input deadline instead of restarting the pacing interval each loop. The FPS readout updates only for submitted frames. The generic macOS Run task now selects the GPU backend; the user's saved 120-FPS target was reduced to 60, preserving their other preferences.
+
+The updated player/terrain palette was reviewed from an actual framebuffer capture: `docs/screenshots/12-player-contrast.png`. Visible refresh rate and physical keyboard feel still need confirmation on the user's display; automated checks cover the movement state transitions.
+
+
+
+## Procedural world and mods
 
 122 checks pass after adding seed determinism, negative chunk coordinates, regeneration after unload, visit-order independence, bounded caches, varied biomes, remote encounters, cooldown-preserving enemy unload/respawn, stable entity IDs, ordered mods, content overlays and invalid mod rejection. The terminal integration suite also passes.
 

@@ -117,12 +117,14 @@ void Game::input(const Input& in) {
         if(k=='v') aim.y+=2;
         if(k=='<') aim.x-=2;
         if(k=='>') aim.x+=2;
-        if(k=='w') direction.y-=1;
-        if(k=='s') direction.y+=1;
-        if(k=='a') direction.x-=1;
-        if(k=='d') direction.x+=1;
+
         if(k=='='||k=='+') camera.zoom=clamp(camera.zoom+.1f,.55f,2.f);
         if(k=='-') camera.zoom=clamp(camera.zoom-.1f,.55f,2.f);
+    }
+    const auto& movement=in.heldMovement?in.movementKeys:in.keys;
+    if(!inventoryMenu&&!classMenu&&!helpMenu) {
+        direction.x=float(movement.find('d')!=std::string::npos)-float(movement.find('a')!=std::string::npos);
+        direction.y=float(movement.find('s')!=std::string::npos)-float(movement.find('w')!=std::string::npos);
     }
     if(length(direction)>0) { velocity=normalized(direction)*hero.speed; movementTime=.16f; }
     if(in.scroll) camera.zoom=clamp(camera.zoom+in.scroll*.1f,.55f,2.f);
@@ -156,15 +158,16 @@ void Game::tick(float dt) {
 void Game::render(Framebuffer& f,float ms) {
     if(f.width<40||f.height<16) { f.clear(); f.text(0,0,"Resize to at least 40x16"); f.text(0,2,"Q: quit"); return; }
     camera.width=f.width; camera.height=f.height; scene.begin(camera); world.render(scene,time);
-    if(hero.alive) drawCharacter(scene,hero.pos,hero.color,time,length(velocity)>0,int(hero.role));
+    if(hero.alive) drawCharacter(scene,hero.pos,{255,210,112},time,length(velocity)>0,int(hero.role));
     for(const auto& e:party) if(e.alive) drawCharacter(scene,e.pos,e.color,time,length(e.velocity)>0,int(e.role));
     for(const auto& e:mobs) if(e.alive) {
-        if(e.archetype==0) drawSkeleton(scene,e.pos,e.color,time); else drawCharacter(scene,e.pos,e.color,time,length(e.velocity)>0,int(e.role));
+        if(e.archetype==0) drawSkeleton(scene,e.pos,mix(e.color,{237,128,104},.55f),time); else drawCharacter(scene,e.pos,mix(e.color,{237,128,104},.55f),time,length(e.velocity)>0,int(e.role));
     }
     for(const auto& item:loot) scene.point(item.pos,.3f,{192,171,109},U'*',{0,0,1},.2f);
     if(dragon.alive) drawDragon(scene,dragon.pos,time);
     combat.render(scene,time);
     world.reflections(scene,time); scene.convert(f);
+    if(hero.alive) playerAvatar(f,camera,hero,time);
     if(showNames) { nameLabel(f,camera,hero); for(const auto& e:party) nameLabel(f,camera,e,e.id==hero.target);
     for(const auto& e:mobs) nameLabel(f,camera,e,e.id==hero.target);
     for(const auto& item:loot) { Vec2 p=camera.project(item.pos); if(p.y>2&&p.y<f.height-5) f.text(int(p.x)-4,int(p.y)-1,data.items[size_t(item.item)].name,{151,139,111}); }

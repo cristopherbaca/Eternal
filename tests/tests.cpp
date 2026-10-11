@@ -46,9 +46,9 @@ int main() { try {
         std::vector<Entity*> targets{&e,&ally,&mob}; check(combat.cast(e,slot,{5,12},ally.id,targets,data,a,texts).empty(),"all class abilities cast");
     }
     Game game;
-    Input held; held.heldMovement=true; held.keys="d"; game.input(held);
+    Input held; held.heldMovement=true; held.movementKeys="d"; game.input(held);
     check(game.velocity.x>0,"native held movement starts immediately");
-    held.keys.clear(); game.input(held); check(length(game.velocity)==0,"native key release stops immediately");
+    held.movementKeys.clear(); game.input(held); check(length(game.velocity)==0,"native key release stops immediately");
     auto& victim=game.mobs.front(); victim.hp=1; dealDamage(victim,10,game.texts); game.rewards(); check(!game.loot.empty()&&game.hero.xp>0,"kill yields loot and XP");
     int xp=game.hero.xp; game.rewards(); check(game.hero.xp==xp,"kill rewarded once");
     game.hero.pos=game.loot.front().pos; game.collectLoot(); check(!game.hero.inventory.empty(),"nearby loot collected");
@@ -178,5 +178,19 @@ int main() { try {
     failed=false; try { Data invalid(base,{modRoot/"b"}); } catch(const std::exception&) { failed=true; }
     check(failed,"unsafe content magnitudes rejected");
     std::filesystem::remove_all(modRoot);
+    Game movementGame;
+    Input diagonal; diagonal.heldMovement=true;
+    for(const auto& pair:std::vector<std::string>{"wa","wd","as","sd"}) {
+        diagonal.keys="wwwwdd"; diagonal.movementKeys=pair; movementGame.input(diagonal);
+        check((movementGame.velocity.x>0)==(pair.find('d')!=std::string::npos)&&(movementGame.velocity.y>0)==(pair.find('s')!=std::string::npos)&&std::abs(std::abs(movementGame.velocity.x)-std::abs(movementGame.velocity.y))<.001f&&std::abs(length(movementGame.velocity)-movementGame.hero.speed)<.001f,"held diagonals ignore repeat counts and preserve speed");
+    }
+    diagonal.keys.clear(); diagonal.movementKeys="w"; movementGame.input(diagonal);
+    check(movementGame.velocity.x==0&&movementGame.velocity.y<0,"releasing one diagonal key retains the other axis");
+    diagonal.movementKeys="wasd"; movementGame.input(diagonal); check(length(movementGame.velocity)==0,"opposite held directions cancel");
+    diagonal.movementKeys.clear(); movementGame.input(diagonal); check(length(movementGame.velocity)==0,"release all stops movement");
+    diagonal.keys="w"; movementGame.input(diagonal); check(length(movementGame.velocity)==0,"released native key does not move from stale key-down events");
+    Framebuffer avatar(200,60); movementGame.render(avatar,16);
+    int brightGold=0; for(const auto& c:avatar.cells) if(c.fg==Color{255,204,103}) ++brightGold;
+    check(brightGold>5,"local player has a distinct bright silhouette");
     std::cout<<checks<<" checks passed: math, renderer, input, combat, AI, progression, boss, menus and deterministic replay\n";
 } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; } }

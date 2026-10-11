@@ -7,7 +7,10 @@
             "osx": {
                 "command": "/private/tmp/eternalrpg-build-tools/cmake/data/bin/cmake"
             },
-            "args": ["--build", "${workspaceFolder}/build"],
+            "args": [
+                "--build",
+                "${workspaceFolder}/build"
+            ],
             "options": {
                 "cwd": "${workspaceFolder}"
             },
@@ -24,7 +27,9 @@
             "type": "process",
             "label": "EternalRPG: Run",
             "command": "${workspaceFolder}/build/eternal_rpg",
-            "options": {"cwd": "${workspaceFolder}"},
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
             "dependsOn": "EternalRPG: Build",
             "problemMatcher": [],
             "presentation": {
@@ -32,6 +37,11 @@
                 "focus": true,
                 "panel": "dedicated",
                 "clear": true
+            },
+            "osx": {
+                "args": [
+                    "--window"
+                ]
             }
         }
     ],

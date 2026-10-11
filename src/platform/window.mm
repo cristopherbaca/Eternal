@@ -114,8 +114,11 @@ Input Window::poll() {
                     NSString* chars=[e charactersIgnoringModifiers];
                     unichar key=chars.length?[chars characterAtIndex:0]:0;
                     if(key>='A'&&key<='Z') key+=32;
+                    // Always process key-up, even if a modifier changed while held.
+                    char movement=e.keyCode==13?'w':e.keyCode==0?'a':e.keyCode==1?'s':e.keyCode==2?'d':0;
+                    if(movement&&e.type==NSEventTypeKeyUp) v.held[size_t(movement)]=false;
                     if(!(e.modifierFlags&NSEventModifierFlagCommand)) {
-                        if(key<128) v.held[key]=e.type==NSEventTypeKeyDown;
+                        if(movement) v.held[size_t(movement)]=e.type==NSEventTypeKeyDown;
                         if(e.type==NSEventTypeKeyDown) {
                             if(key==NSUpArrowFunctionKey) input.keys+='^';
                             else if(key==NSDownArrowFunctionKey) input.keys+='v';
@@ -133,7 +136,7 @@ Input Window::poll() {
         }
         if(!v.window.keyWindow) v.held.fill(false);
         // Hardware key-up events remove the terminal keyboard-repeat delay.
-        for(char k:std::string("wasd")) if(v.held[size_t(k)]&&input.keys.find(k)==std::string::npos) input.movementKeys+=k;
+        for(char k:std::string("wasd")) if(v.held[size_t(k)]) input.movementKeys+=k;
         if(v.window.keyWindow) {
             NSPoint mouse=[v.window mouseLocationOutsideOfEventStream];
             auto [cols,rows]=std::pair<int,int>{v.cols,v.rows}; NSSize bounds=v.window.contentView.bounds.size;
@@ -146,6 +149,7 @@ Input Window::poll() {
         return input;
     }
 }
+bool Window::ready() const { return !impl->pending||impl->pending.status>=MTLCommandBufferStatusCompleted; }
 bool Window::present(const Framebuffer& frame) {
     @autoreleasepool {
         auto& v=*impl;
@@ -155,7 +159,8 @@ bool Window::present(const Framebuffer& frame) {
         if(v.pending.status==MTLCommandBufferStatusError) throw std::runtime_error("Metal frame failed");
         NSSize bounds=v.window.contentView.bounds.size;
         CGFloat scale=v.window.backingScaleFactor;
-        v.layer.drawableSize=CGSizeMake(bounds.width*scale,bounds.height*scale);
+        CGSize drawableSize=CGSizeMake(bounds.width*scale,bounds.height*scale);
+        if(!CGSizeEqualToSize(v.layer.drawableSize,drawableSize)) v.layer.drawableSize=drawableSize;
         id<CAMetalDrawable> drawable=[v.layer nextDrawable];
         if(!drawable) return false;
         struct GPUCell { uint32_t glyph,fg,bg,pad; };
