@@ -44,14 +44,17 @@ void World::render(Scene& s,float time) const {
         if(arch||slit||(z>8.4f&&int((x+21)/2.6f)%2==0)) continue;
         float n=noise(int(x*4),int(z*4),seed); bool mortar=int(z*3)%4==0;
         Color col=mix({58,69,81},{121,136,143},n); if(mortar) col=col*.65f;
-        s.point({x,wallY},z,col,mortar?U'=':U"0O8o@#"[int(n*5.99f)],{0,-1,.2f});
+        s.point({x,wallY},z,col,mortar?U'=':(n<.4f?0:U"0O8o@#"[int(n*5.99f)]),{0,-1,.2f});
         if(((x>6&&x<7.4f)||(x<-6&&x>-7.4f))&&z>4&&z<8) s.point({x,wallY-.04f},z,{135,40,48},U'|');
     }
     for(float x:{-21.f,21.f}) for(float y=-22;y<=-10;y+=.4f/c.zoom) for(float z=0;z<11;z+=.45f/c.zoom) {
         if(z>9.5f&&int(y+22)%4<2) continue;
         float n=noise(int(y*5),int(z*3),seed); s.point({x,y},z,mix({45,61,76},{100,120,128},n),U"08#o="[int(n*4.99f)],{1,0,.3f});
     }
-    for(Vec2 p:{Vec2{-4,-9.7f},Vec2{4,-9.7f}}) { s.point(p,4,{255,180,77},U'*',{0,0,1},1); s.point(p,3.4f,{158,97,52},U'|'); }
+    for(Vec2 p:{Vec2{-4,-9.7f},Vec2{4,-9.7f}}) {
+        s.lights.push_back({p,4,{255,138,47},12,1.6f+.15f*std::sin(time*11+p.x)});
+        s.point(p,4,{255,214,122},U'*',{0,0,1},1); s.point(p,3.4f,{158,97,52},U'|');
+    }
     for(const Tree& t:trees) {
         Vec2 base=c.project(t.pos); float ht=t.height*c.zoom*1.5f,rx=t.radius*c.zoom*2.2f;
         if(base.x+rx<0||base.x-rx>c.width||base.y<0||base.y-ht>c.height) continue;

@@ -13,3 +13,9 @@ Validation: CMake build and 120-frame headless render. Reference comparison: mat
 Seeded trees, dense animated grass, flowers, diagonal cobbles and arch ruins. Tilted projection and depth buffer, WASD collision movement, smooth camera and zoom. Simulation runs at a fixed 60 Hz. Run `./build/eternal_rpg`; scroll or `+/-` zooms.
 
 Comparison with forest/grass frames: conifers and rounded foliage now have different silhouettes; castle arches and banners remain legible at 200×60. Biggest remaining differences: flat ambient colors and grass without displacement. Lighting follows in milestone 3.
+
+## 3 — Lighting and ASCII
+
+Software pixels retain depth, world position, height, normal and material color. Conversion shades with directional ambient light, warm radial sources, luminance ramp, surface edges and vignette. Torch flicker colors nearby stone glyphs. Unit tests cover projection, math, ASCII, falloff, input and diff output.
+
+Run `./build/eternal_rpg` and `ctest --test-dir build --output-on-failure`. Reference comparison: removed uniformly bright peripheral foliage and added warm stone near torches. True optical bloom is approximated by colored glyphs; terminal backgrounds stay navy. Grass displacement and reflected silhouettes remain next.
