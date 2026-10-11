@@ -1,0 +1,31 @@
+# role slot "name" effect mp cooldown power radius speed range duration
+Warrior 1 "Slash" melee 0 0.65 38 3 0 3 0
+Warrior 2 "Taunt" taunt 10 8 0 12 0 12 6
+Warrior 3 "Shield bash" bash 14 4 55 3 0 3 3
+Warrior 4 "Charge" charge 16 5 42 3 24 12 0
+Warrior 5 "Bulwark" shield 18 12 0 0 0 0 6
+Warrior 6 "War cry" group_buff 20 15 35 9 0 9 7
+Mage 1 "Fire orb" fire_orb 12 0.65 54 2.5 17 25 2.5
+Mage 2 "Fire circle" fire 32 6 22 5 0 20 5
+Mage 3 "Frost nova" frost 24 8 35 7 0 0 4
+Mage 4 "Blink" dash 15 5 0 0 0 10 0
+Mage 5 "Arcane bolt" bolt 8 0.35 26 1 26 28 2
+Mage 6 "Mana surge" mana 0 20 110 0 0 0 0
+Archer 1 "Arrow" arrow 0 0.5 34 0.5 32 32 2
+Archer 2 "Multishot" multishot 20 4 28 0.7 30 30 2
+Archer 3 "Snare trap" trap 18 7 48 4 0 15 8
+Archer 4 "Roll" dash 12 4 0 0 0 7 0
+Archer 5 "Piercing arrow" pierce 22 5 90 0.7 36 35 2
+Archer 6 "Volley" volley 28 8 28 6 0 24 3
+Cleric 1 "Mend" heal 18 1.2 200 0 0 25 0
+Cleric 2 "Sanctuary" heal_area 35 7 75 8 0 18 4
+Cleric 3 "Radiant bolt" holy 10 0.7 36 1 23 25 2
+Cleric 4 "Ward" shield 20 10 0 0 0 0 6
+Cleric 5 "Resurrect" resurrect 65 25 100 0 0 18 0
+Cleric 6 "Renewal" heal_group 40 12 200 12 0 0 0
+Rogue 1 "Stab" melee 0 0.45 38 2.5 0 2.5 0
+Rogue 2 "Backstab" backstab 20 5 110 3 0 3 0
+Rogue 3 "Venom" poison 18 6 20 3 0 3 6
+Rogue 4 "Dash" dash 12 3 0 0 0 10 0
+Rogue 5 "Smoke" shield 20 10 0 0 0 0 5
+Rogue 6 "Fan of knives" knives 25 5 35 1 22 18 2

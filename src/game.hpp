@@ -2,14 +2,17 @@
 #include "world/world.hpp"
 #include "platform/terminal.hpp"
 #include "entities/entity.hpp"
+#include "combat/combat.hpp"
 namespace er {
 class Game {
 public:
-    World world; Camera camera; Entity hero; std::vector<Entity> party,mobs; Entity dragon;
+    Data data; World world; Combat combat; Camera camera; Entity hero; std::vector<Entity> party,mobs; Entity dragon;
     std::vector<FloatingText> texts; Vec2 velocity{},aim{5,12}; float time=0; bool quit=false;
-    explicit Game(uint32_t seed=42);
+    bool classMenu=false,helpMenu=false; std::string message="Welcome to Ashenmere. C: class  H: help";
+    explicit Game(uint32_t seed=42,const std::filesystem::path& dataPath={});
     void setScene(const std::string& name);
     void input(const Input& in); void tick(float dt); void render(Framebuffer& f,float ms);
-private: float movementTime=0; Scene scene;
+    std::vector<Entity*> entities();
+private: float movementTime=0; Scene scene; std::vector<int> casts;
 };
 }

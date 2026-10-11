@@ -31,3 +31,9 @@ Validation: spring displacement/recovery tests and water capture. Comparison: ne
 Outlined player/party panels, actual numeric HP/MP bars, level/gold, party tab, white overhead names, conditional target health bars, floating-text renderer and responsive compact layout. Run `./build/eternal_rpg`; `--width 60 --height 20 --headless --frames 1` verifies a small terminal.
 
 Comparison: panel proportions and red/blue bars match the boss footage layout. Player and party names make the dark figures identifiable. Floating text is wired for real combat events in the next milestone; no fabricated damage/heals are shown. Boss bar rendering exists but awaits a live boss.
+
+## 6 — Classes and combat
+
+Five silhouettes and 30 data-driven abilities with MP/cooldowns: fire orbs/embers, fire circles, frost, arrows/multishot/traps, heals/wards/resurrection, melee/taunt/charge, poison/backstab/dash. Swept projectile collision, armor formula, particles and grass impulses. Mouse/arrow crosshair, Tab target, six-slot hotbar, `C` class selection. `./build/eternal_rpg --demo` repeatedly casts real abilities for inspection.
+
+Validation: all 30 casts, MP/cooldown rejection, actual projectile damage, healing and death bounds. Comparison with spell footage: orange orb, trailing embers and warm grass tint are present; glyph-scale fire core is smaller than the high-resolution source. Fire ring/particles are used to retain the larger glow silhouette. Run normally to aim and cast manually.

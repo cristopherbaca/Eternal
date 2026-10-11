@@ -13,7 +13,7 @@ struct Entity {
     float hp=129,maxHp=129,mp=129,maxMp=129,armor=8,power=25,speed=8;
     int level=11,xp=0,gold=3880,target=0;
     bool alive=true,rewarded=false; Brain brain=Brain::Idle;
-    float attackTimer=0,poison=0,slow=0,shield=0,deadTime=0,taunt=0;
+    float attackTimer=0,poison=0,slow=0,shield=0,deadTime=0,taunt=0,hurtTime=0,dotTimer=0;
     std::array<float,6> cooldown{};
     std::vector<int> inventory; int equipped=-1;
 };

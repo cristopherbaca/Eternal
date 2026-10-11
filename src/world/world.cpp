@@ -104,8 +104,14 @@ void World::reflections(Scene& s,float time) const {
         if(ring<.12f) s.pixels[size_t(y*c.width+x)]={Color{28,43,55},U'-',target.y,target,0,{0,0,1},0};
     }
 }
-void drawCharacter(Scene& s,Vec2 p,Color color,float time,bool moving) {
-    static const char* sprite[]={"   ^   ","  (o)  "," /#|\\ ","  ###  ","  / \\ "};
+void drawCharacter(Scene& s,Vec2 p,Color color,float time,bool moving,int style) {
+    static const char* sprites[5][5]={
+        {"  [O]  ","  |#| /"," [###]|","  |#|  ","  / \\ "},
+        {"   ^   ","  (o)  "," /#|\\ ","  ###  ","  / \\ "},
+        {"   ,   ","  (o) )","  /#==)","   #  )","  / \\ "},
+        {"   +   ","  (o)  ","  /+\\ ","  |#|  ","  / \\ "},
+        {"  .^.  ","  (:)  "," </#\\>","   #   ","  / \\ "}};
+    const auto& sprite=sprites[clamp(style,0,4)];
     Vec2 base=s.camera.project(p); float stride=moving?std::sin(time*13):0;
     for(int y=0;y<5;++y) for(int x=0;sprite[y][x];++x) if(sprite[y][x]!=' ') {
         int xx=int(base.x)+x-3+(y==4?int(stride):0); Color col=y==1?Color{179,164,137}:color;

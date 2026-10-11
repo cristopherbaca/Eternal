@@ -1,6 +1,7 @@
 #include "ascii_conversion/ascii.hpp"
 #include "platform/terminal.hpp"
 #include "world/world.hpp"
+#include "combat/combat.hpp"
 #include <iostream>
 #include <stdexcept>
 void check(bool ok,const char* name) { if(!ok) throw std::runtime_error(name); }
@@ -20,5 +21,16 @@ int main() { try {
     World a(42),b(42); check(a.trees.size()==b.trees.size(),"world repeatability"); check(a.blocked({90,0}),"world boundary");
     a.pushGrass({0,12},3,10); a.tick(1.f/60); check(length(a.grassBend({1,12}))>0,"grass deflects");
     for(int i=0;i<600;++i) a.tick(1.f/60); check(length(a.grassBend({1,12}))<.001f,"grass spring recovers");
+    check(std::abs(damageAfterArmor(100,100)-50)<.001f,"armor damage formula");
+    Data data; Entity mage,mob; data.applyClass(mage,Role::Mage); mob.id=100; mob.kind=Kind::Mob; mob.pos={5,12}; mob.hp=mob.maxHp=100; mob.armor=0;
+    Combat combat; std::vector<Entity*> es{&mage,&mob}; std::vector<FloatingText> texts;
+    float mp=mage.mp; check(combat.cast(mage,0,mob.pos,mob.id,es,data,a,texts).empty(),"fire orb cast");
+    check(mage.mp<mp&&!combat.cast(mage,0,mob.pos,mob.id,es,data,a,texts).empty(),"cost and cooldown");
+    for(int i=0;i<40;++i) combat.tick(1.f/60,es,a,texts); check(mob.hp<100,"projectile swept hit");
+    mob.hp=90; heal(mob,200,texts); check(mob.hp==100,"heal clamps maximum"); dealDamage(mob,1000,texts); check(!mob.alive&&mob.hp==0,"death clamps zero");
+    for(int r=0;r<5;++r) for(int slot=0;slot<6;++slot) {
+        Entity e,ally; data.applyClass(e,Role(r)); e.mp=1000; ally.id=2; ally.kind=Kind::Party; ally.alive=!(r==3&&slot==4); ally.hp=50; ally.pos=e.pos;
+        std::vector<Entity*> targets{&e,&ally,&mob}; check(combat.cast(e,slot,{5,12},ally.id,targets,data,a,texts).empty(),"all class abilities cast");
+    }
     std::cout<<"Math, projection, ASCII, lighting, framebuffer, input and world checks passed\n";
 } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; } }

@@ -1,0 +1,6 @@
+# role hp mp armor power speed red green blue
+Warrior 320 80 28 34 7 161 169 186
+Mage 129 280 8 32 8 133 136 202
+Archer 180 140 12 30 9 113 167 114
+Cleric 210 340 14 25 7.5 167 204 150
+Rogue 165 150 10 38 10 170 112 174
