@@ -17,7 +17,7 @@ public:
 private:
     bool active=false; InputParser parser;
 #ifdef _WIN32
-    HANDLE in=INVALID_HANDLE_VALUE,out=INVALID_HANDLE_VALUE; DWORD oldIn=0,oldOut=0;
+    HANDLE in=INVALID_HANDLE_VALUE,out=INVALID_HANDLE_VALUE; DWORD oldIn=0,oldOut=0; UINT oldCodePage=0;
 #else
     termios old{}; int oldFlags=0;
 #endif

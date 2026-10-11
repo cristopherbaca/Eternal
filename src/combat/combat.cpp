@@ -68,9 +68,12 @@ void Combat::tick(float dt,const std::vector<Entity*>& es,World& world,std::vect
     for(auto& p:projectiles) {
         Vec2 old=p.pos; p.pos+=p.velocity*dt; p.life-=dt; Entity* owner=ownerOf(p.owner); bool hit=world.blocked(p.pos);
         if(owner) for(auto* e:es) if(e->alive&&hostile(*owner,*e)) {
+            if(std::find(p.hitIds.begin(),p.hitIds.end(),e->id)!=p.hitIds.end()) continue;
             Vec2 step=p.pos-old; float t=clamp(dot(e->pos-old,step)/std::max(.0001f,dot(step,step)),0.f,1.f);
             if(distance(e->pos,old+step*t)<(e->kind==Kind::Boss?3.f:1.2f)) {
-                dealDamage(*e,p.power,texts); hit=true;
+                dealDamage(*e,p.power,texts); p.hitIds.push_back(e->id);
+                if(p.effect=="pierce") { burst(e->pos,p.color,8,2); continue; }
+                hit=true;
                 if(p.effect=="fire_orb") for(auto* other:es) if(other!=e&&hostile(*owner,*other)&&distance(other->pos,p.pos)<p.radius) dealDamage(*other,p.power*.6f,texts);
                 break;
             }

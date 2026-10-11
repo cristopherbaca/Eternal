@@ -23,7 +23,7 @@ int main(int argc,char** argv) { try {
         else if(arg=="--ticks"&&i+1<argc) ticks=std::stoi(argv[++i]); else if(arg=="--seed"&&i+1<argc) seed=uint32_t(std::stoul(argv[++i]));
         else if(arg=="--data"&&i+1<argc) dataPath=argv[++i]; else if(arg=="--help") { std::cout<<"game_server [--bind 127.0.0.1] [--port 7777] [--seed 42] [--ticks N]\n"; return 0; } else throw std::runtime_error("Unknown server option: "+arg);
     }
-    if(port<1||port>65535) throw std::runtime_error("Port outside 1..65535");
+    if(port<1||port>65535||ticks<0) throw std::runtime_error("Invalid port or tick limit");
     Runtime runtime; Connection listener(listenOn(address,uint16_t(port))); Game game(seed,dataPath); game.serverMode=true; game.hero.alive=false; game.guests.reserve(8);
     std::vector<Peer> peers; peers.reserve(8); int nextId=1000; uint64_t tick=0; std::signal(SIGINT,stop); std::signal(SIGTERM,stop);
     auto entity=[&](int id)->Entity* { for(auto& e:game.guests) if(e.id==id) return &e; return nullptr; };
@@ -40,7 +40,7 @@ int main(int argc,char** argv) { try {
                 if(op=="HELLO"&&!peer.id) {
                     int version=0,role=0; std::string name; in>>version>>std::quoted(name)>>role;
                     if(!in||version!=1||role<0||role>4) { peer.connection.close(); break; }
-                    Entity e; e.id=++nextId; e.group=e.id; e.kind=Kind::Remote; e.name=safeText(name,20); if(e.name.empty()) e.name="Traveler"; game.data.applyClass(e,Role(role)); e.pos={float(peers.size()-1)*2,12}; e.home=e.pos;
+                    Entity e; e.id=++nextId; e.group=e.id; e.kind=Kind::Remote; e.name=safeText(name,20); if(e.name.empty()) e.name="Traveler"; game.data.applyClass(e,Role(role)); e.pos={float(game.guests.size())*2,12}; e.home=e.pos;
                     peer.id=e.id; game.guests.push_back(e); peer.connection.send("WELCOME "+std::to_string(e.id)+" "+std::to_string(seed)); broadcast(e.name+" joined ["+std::to_string(e.id)+"]"); continue;
                 }
                 Entity* e=entity(peer.id); if(!e) continue;

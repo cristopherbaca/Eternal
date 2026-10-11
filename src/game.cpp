@@ -13,10 +13,10 @@ Game::Game(uint32_t seed,const std::filesystem::path& dataPath):data(dataPath),w
     mobs.reserve(128);
     for(int i=0;i<22;++i) {
         Vec2 p{noise(i,9,seed)*120-60,noise(i,13,seed)*65-25};
-        if(world.blocked(p)||world.water(p)||distance(p,hero.pos)<9) continue;
+        if(world.blocked(p)||world.water(p+Vec2{0,18})||distance(p,hero.pos)<9) continue;
         spawnMob(p,i%3);
     }
-    spawnMob({12,10},0); spawnMob({-13,17},0); spawnMob({10,27},2);
+    spawnMob({12,10},0); spawnMob({-13,17},0); spawnMob({18,20},2);
 }
 void Game::spawnMob(Vec2 pos,int archetype) {
     if(mobs.size()>=100) return;
@@ -71,7 +71,7 @@ void Game::input(const Input& in) {
         if(k=='h') helpMenu=!helpMenu;
         if(k>='1'&&k<='6') {
             if(classMenu&&k<='5') {
-                if(hero.hurtTime>0||!hero.alive) { message="Change class while alive and out of combat"; continue; }
+                if(hero.hurtTime>0||!hero.alive||fight.active) { message="Change class while alive and out of combat"; continue; }
                 data.applyClass(hero,Role(k-'1'));
                 for(int item:hero.equipment) if(item>=0) { hero.armor+=data.items[size_t(item)].armor; hero.power+=data.items[size_t(item)].power; }
                 classMenu=false; message=std::string("Class: ")+roleName(hero.role);
@@ -111,10 +111,13 @@ void Game::tick(float dt) {
     camera.center=lerp(camera.center,hero.pos,1-std::exp(-dt*6));
 }
 void Game::render(Framebuffer& f,float ms) {
+    if(f.width<40||f.height<16) { f.clear(); f.text(0,0,"Resize to at least 40x16"); f.text(0,2,"Q: quit"); return; }
     camera.width=f.width; camera.height=f.height; scene.begin(camera); world.render(scene,time);
     if(hero.alive) drawCharacter(scene,hero.pos,hero.color,time,length(velocity)>0,int(hero.role));
     for(const auto& e:party) if(e.alive) drawCharacter(scene,e.pos,e.color,time,length(e.velocity)>0,int(e.role));
-    for(const auto& e:mobs) if(e.alive) drawCharacter(scene,e.pos,e.color,time,length(e.velocity)>0,int(e.role));
+    for(const auto& e:mobs) if(e.alive) {
+        if(e.archetype==0) drawSkeleton(scene,e.pos,e.color,time); else drawCharacter(scene,e.pos,e.color,time,length(e.velocity)>0,int(e.role));
+    }
     for(const auto& item:loot) scene.point(item.pos,.3f,{192,171,109},U'*',{0,0,1},.2f);
     for(const auto& e:guests) if(e.alive) drawCharacter(scene,e.pos,e.color,time,length(e.velocity)>0,int(e.role));
     if(dragon.alive) drawDragon(scene,dragon.pos,time);

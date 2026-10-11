@@ -9,7 +9,7 @@ std::string snapshot(Game& g,uint64_t tick) {
     for(auto* e:g.entities()) {
         out<<"E "<<e->id<<' '<<std::quoted(safeText(e->name,24))<<' '<<int(e->kind)<<' '<<int(e->role)<<' '<<e->pos.x<<' '<<e->pos.y<<' '<<e->velocity.x<<' '<<e->velocity.y<<' '<<e->hp<<' '<<e->maxHp<<' '<<e->mp<<' '<<e->maxMp<<' '<<e->armor<<' '<<e->power<<' '<<e->speed<<' '<<e->alive<<' '<<e->level<<' '<<e->xp<<' '<<e->gold<<' '<<e->target<<' '<<e->group<<' '<<int(e->color.r)<<' '<<int(e->color.g)<<' '<<int(e->color.b);
         for(float cd:e->cooldown) out<<' '<<cd;
-        out<<' '<<e->inventory.size(); for(int item:e->inventory) out<<' '<<item; for(int item:e->equipment) out<<' '<<item; out<<'\n';
+        out<<' '<<e->inventory.size(); for(int item:e->inventory) out<<' '<<item; for(int item:e->equipment) out<<' '<<item; out<<' '<<e->archetype<<'\n';
     }
     for(const auto& a:g.combat.areas) out<<"A "<<a.pos.x<<' '<<a.pos.y<<' '<<a.radius<<' '<<a.life<<' '<<a.delay<<' '<<a.owner<<' '<<a.effect<<' '<<a.direction.x<<' '<<a.direction.y<<'\n';
     for(const auto& p:g.combat.projectiles) out<<"P "<<p.pos.x<<' '<<p.pos.y<<' '<<p.velocity.x<<' '<<p.velocity.y<<' '<<p.life<<' '<<p.owner<<' '<<p.effect<<' '<<int(p.color.r)<<' '<<int(p.color.g)<<' '<<int(p.color.b)<<'\n';
@@ -34,6 +34,7 @@ Snapshot parseSnapshot(const std::string& message) {
             in>>count; if(count<0||count>24) throw std::runtime_error("Invalid network inventory");
             for(int i=0;i<count;++i) { int id=0; in>>id; if(id<0||id>4) throw std::runtime_error("Invalid network item"); e.inventory.push_back(id); }
             for(int& id:e.equipment) { in>>id; if(id < -1||id>4) throw std::runtime_error("Invalid equipment"); }
+            in>>e.archetype; if(e.archetype<0||e.archetype>2) throw std::runtime_error("Invalid enemy archetype");
             s.entities.push_back(e);
         } else if(tag=="A") { Area a; in>>a.pos.x>>a.pos.y>>a.radius>>a.life>>a.delay>>a.owner>>a.effect>>a.direction.x>>a.direction.y; if(!std::isfinite(a.radius)||a.radius<0||a.radius>50) throw std::runtime_error("Invalid area"); s.areas.push_back(a); }
         else if(tag=="P") { Projectile p; int r=0,g=0,b=0; in>>p.pos.x>>p.pos.y>>p.velocity.x>>p.velocity.y>>p.life>>p.owner>>p.effect>>r>>g>>b; p.color=rgb(float(r),float(g),float(b)); s.projectiles.push_back(p); }

@@ -4,8 +4,9 @@
 namespace er {
 struct Camera {
     Vec2 center{0,12}; float zoom=1; int width=200,height=60;
-    Vec2 project(Vec2 p,float z=0) const { return {width*.5f+(p.x-center.x)*2.2f*zoom,height*.55f+(p.y-center.y)*.9f*zoom-z*1.5f*zoom}; }
-    Vec2 unproject(Vec2 s) const { return {center.x+(s.x-width*.5f)/(2.2f*zoom),center.y+(s.y-height*.55f)/(.9f*zoom)}; }
+    float scale() const { return zoom*std::max(.7f,height/60.f); }
+    Vec2 project(Vec2 p,float z=0) const { float zf=scale(); return {width*.5f+(p.x-center.x)*2.2f*zf,height*.55f+(p.y-center.y)*.9f*zf-z*1.5f*zf}; }
+    Vec2 unproject(Vec2 s) const { float zf=scale(); return {center.x+(s.x-width*.5f)/(2.2f*zf),center.y+(s.y-height*.55f)/(.9f*zf)}; }
 };
 struct Normal { float x=0,y=0,z=1; };
 struct Pixel {

@@ -12,7 +12,7 @@ void bar(Framebuffer& f,int x,int y,int w,float v,float max,Color color) {
 }
 void nameLabel(Framebuffer& f,const Camera& c,const Entity& e,bool targeted) {
     if(!e.alive) return;
-    Vec2 p=c.project(e.pos); int y=int(p.y)-(e.kind==Kind::Boss?16:7); int x=int(p.x)-int(e.name.size()/2);
+    Vec2 p=c.project(e.pos); int y=int(p.y)-int((e.kind==Kind::Boss?16:7)*c.scale()); int x=int(p.x)-int(e.name.size()/2);
     if(y<2||y>=f.height-4) return;
     f.text(x,y,e.name,targeted?Color{255,219,150}:white);
     if(e.hp<e.maxHp||targeted) bar(f,int(p.x)-3,y+1,7,e.hp,e.maxHp,{200,66,62});

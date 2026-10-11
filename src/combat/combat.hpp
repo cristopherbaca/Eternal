@@ -3,7 +3,7 @@
 #include "world/world.hpp"
 namespace er {
 struct Particle { Vec2 pos,velocity; float height=1,life=1,maxLife=1; Color color{}; char32_t glyph=U'.'; };
-struct Projectile { Vec2 pos,velocity; int owner=0; float power=0,radius=1,life=2; std::string effect; Color color{}; };
+struct Projectile { Vec2 pos,velocity; int owner=0; float power=0,radius=1,life=2; std::string effect; Color color{}; std::vector<int> hitIds{}; };
 struct Area { Vec2 pos; float radius=4,life=4,delay=0,interval=1,timer=0,power=20; int owner=1; std::string effect="fire"; Vec2 direction{1,0}; };
 bool hostile(const Entity& a,const Entity& b);
 float damageAfterArmor(float power,float armor);

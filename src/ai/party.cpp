@@ -6,7 +6,7 @@ void tickParty(Game& g,float dt) {
     for(size_t i=0;i<g.party.size();++i) {
         auto& e=g.party[i]; if(!e.alive) continue;
         Entity* target=nullptr; float best=22;
-        for(auto* foe:es) if(foe->alive&&hostile(e,*foe)) { float d=distance(e.pos,foe->pos); if(d<best) { best=d; target=foe; } }
+        for(auto* foe:es) if(foe->alive&&hostile(e,*foe)&&(distance(foe->pos,g.hero.pos)<15||foe->brain==Brain::Attack||g.hero.target==foe->id)) { float d=distance(e.pos,foe->pos); if(d<best) { best=d; target=foe; } }
         if(g.fight.active&&g.dragon.alive) target=&g.dragon;
         Vec2 goal=g.hero.pos+Vec2{float(i)*5-5,3}; e.velocity={}; bool dodge=false;
         for(const auto& area:g.combat.areas) if(area.owner>=100&&distance(e.pos,area.pos)<area.radius+1) {

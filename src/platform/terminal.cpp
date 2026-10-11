@@ -1,6 +1,7 @@
 #include "platform/terminal.hpp"
 #include <csignal>
 #include <cstdio>
+#include <cstdlib>
 #include <stdexcept>
 #ifndef _WIN32
 #include <unistd.h>
@@ -14,10 +15,21 @@ volatile std::sig_atomic_t alive=1;
 constexpr const char restore[]="\x1b[0m\x1b[?1003l\x1b[?1006l\x1b[?25h\x1b[?7h\x1b[?1049l";
 void stop(int) { alive=0; }
 #ifndef _WIN32
+void resized(int) {} // Size is queried each frame; SIGWINCH only interrupts waits.
 termios saved{}; bool savedValid=false;
 void crash(int sig) { if(savedValid) tcsetattr(STDIN_FILENO,TCSANOW,&saved); auto ignored=::write(STDOUT_FILENO,restore,sizeof(restore)-1); (void)ignored; _exit(128+sig); }
 #else
 BOOL WINAPI ctrl(DWORD) { alive=0; return TRUE; }
+HANDLE fatalIn=INVALID_HANDLE_VALUE,fatalOut=INVALID_HANDLE_VALUE;
+DWORD fatalInMode=0,fatalOutMode=0;
+UINT fatalCodePage=0;
+LPTOP_LEVEL_EXCEPTION_FILTER previousFilter=nullptr;
+void restoreWindows() {
+    DWORD written=0; WriteFile(fatalOut,restore,sizeof(restore)-1,&written,nullptr);
+    SetConsoleMode(fatalIn,fatalInMode); SetConsoleMode(fatalOut,fatalOutMode); SetConsoleOutputCP(fatalCodePage);
+}
+LONG WINAPI fatalWindows(EXCEPTION_POINTERS*) { restoreWindows(); return EXCEPTION_CONTINUE_SEARCH; }
+void fatalSignal(int sig) { restoreWindows(); std::_Exit(128+sig); }
 #endif
 }
 Input InputParser::feed(const std::string& bytes) {
@@ -45,21 +57,26 @@ Terminal::Terminal(bool enable) {
     in=GetStdHandle(STD_INPUT_HANDLE); out=GetStdHandle(STD_OUTPUT_HANDLE);
     if(!GetConsoleMode(in,&oldIn)||!GetConsoleMode(out,&oldOut)) throw std::runtime_error("Run in a terminal, or use --headless");
     if(!SetConsoleMode(out,oldOut|ENABLE_VIRTUAL_TERMINAL_PROCESSING)) throw std::runtime_error("VT terminal required");
-    SetConsoleMode(in,ENABLE_WINDOW_INPUT|ENABLE_MOUSE_INPUT|ENABLE_EXTENDED_FLAGS); SetConsoleCtrlHandler(ctrl,TRUE);
+    oldCodePage=GetConsoleOutputCP(); SetConsoleOutputCP(CP_UTF8);
+    fatalIn=in; fatalOut=out; fatalInMode=oldIn; fatalOutMode=oldOut; fatalCodePage=oldCodePage;
+    previousFilter=SetUnhandledExceptionFilter(fatalWindows); std::signal(SIGABRT,fatalSignal);
+    SetConsoleMode(in,ENABLE_PROCESSED_INPUT|ENABLE_WINDOW_INPUT|ENABLE_MOUSE_INPUT|ENABLE_EXTENDED_FLAGS); SetConsoleCtrlHandler(ctrl,TRUE);
 #else
     if(!isatty(STDIN_FILENO)||!isatty(STDOUT_FILENO)) throw std::runtime_error("Run in a terminal, or use --headless");
     if(tcgetattr(STDIN_FILENO,&old)!=0) throw std::runtime_error("Cannot read terminal state");
     saved=old; savedValid=true; termios raw=old;
     raw.c_lflag&=static_cast<tcflag_t>(~(ICANON|ECHO|IEXTEN)); raw.c_iflag&=static_cast<tcflag_t>(~(IXON|ICRNL)); raw.c_cc[VMIN]=0; raw.c_cc[VTIME]=0;
     tcsetattr(STDIN_FILENO,TCSANOW,&raw); oldFlags=fcntl(STDIN_FILENO,F_GETFL); fcntl(STDIN_FILENO,F_SETFL,oldFlags|O_NONBLOCK);
-    std::signal(SIGSEGV,crash); std::signal(SIGABRT,crash); std::signal(SIGTERM,stop); std::signal(SIGHUP,stop);
+    std::signal(SIGSEGV,crash); std::signal(SIGABRT,crash); std::signal(SIGFPE,crash); std::signal(SIGILL,crash); std::signal(SIGBUS,crash);
+    std::signal(SIGTERM,stop); std::signal(SIGHUP,stop); std::signal(SIGWINCH,resized); std::signal(SIGTSTP,stop);
 #endif
     alive=1; std::signal(SIGINT,stop); active=true; write("\x1b[?1049h\x1b[?25l\x1b[?7l\x1b[?1003h\x1b[?1006h\x1b[2J");
 }
 Terminal::~Terminal() {
     if(!active) return; write(restore);
 #ifdef _WIN32
-    SetConsoleMode(in,oldIn); SetConsoleMode(out,oldOut); SetConsoleCtrlHandler(ctrl,FALSE);
+    SetConsoleMode(in,oldIn); SetConsoleMode(out,oldOut); SetConsoleOutputCP(oldCodePage); SetConsoleCtrlHandler(ctrl,FALSE);
+    SetUnhandledExceptionFilter(previousFilter);
 #else
     tcsetattr(STDIN_FILENO,TCSANOW,&old); fcntl(STDIN_FILENO,F_SETFL,oldFlags); savedValid=false;
 #endif
@@ -95,7 +112,8 @@ Input Terminal::poll() {
 void Terminal::write(const std::string& s) {
     if(!active||s.empty()) return;
 #ifdef _WIN32
-    DWORD written=0; WriteFile(out,s.data(),static_cast<DWORD>(s.size()),&written,nullptr);
+    size_t offset=0;
+    while(offset<s.size()) { DWORD written=0; if(!WriteFile(out,s.data()+offset,static_cast<DWORD>(s.size()-offset),&written,nullptr)||!written) break; offset+=written; }
 #else
     size_t offset=0; while(offset<s.size()) { ssize_t n=::write(STDOUT_FILENO,s.data()+offset,s.size()-offset); if(n>0) offset+=size_t(n); else if(errno!=EINTR) break; }
 #endif

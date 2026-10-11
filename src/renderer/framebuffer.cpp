@@ -9,7 +9,7 @@ std::string utf8(char32_t c) {
     else if(c<0x10000) { s+=char(0xe0|(c>>12)); s+=char(0x80|((c>>6)&63)); s+=char(0x80|(c&63)); }
     else { s+=char(0xf0|(c>>18)); s+=char(0x80|((c>>12)&63)); s+=char(0x80|((c>>6)&63)); s+=char(0x80|(c&63)); } return s;
 }
-void Framebuffer::resize(int w,int h) { width=clamp(w,20,500); height=clamp(h,10,180); cells.assign(size_t(width*height),{}); previous.clear(); }
+void Framebuffer::resize(int w,int h) { width=clamp(w,1,500); height=clamp(h,1,180); cells.assign(size_t(width*height),{}); previous.clear(); }
 void Framebuffer::clear() { std::fill(cells.begin(),cells.end(),Cell{}); }
 void Framebuffer::put(int x,int y,char32_t g,Color fg,Color bg) { if(x>=0&&y>=0&&x<width&&y<height) cells[size_t(y*width+x)]={g,fg,bg}; }
 void Framebuffer::text(int x,int y,const std::string& s,Color fg) {

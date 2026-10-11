@@ -8,7 +8,8 @@
 #include "net/socket.hpp"
 #include <iostream>
 #include <stdexcept>
-void check(bool ok,const char* name) { if(!ok) throw std::runtime_error(name); }
+int checks=0;
+void check(bool ok,const char* name) { ++checks; if(!ok) throw std::runtime_error(name); }
 int main() { try {
     using namespace er;
     check(std::abs(length(normalized({3,4}))-1)<.0001f,"vector normalization");
@@ -51,5 +52,14 @@ int main() { try {
     auto snapshot=net::parseSnapshot(net::snapshot(game,123)); check(snapshot.tick==123&&snapshot.entities.front().hp==game.hero.hp,"network snapshot round trip");
     bool rejected=false; try { net::parseSnapshot("SNAP 1 0 1 1\nE 1"); } catch(const std::exception&) { rejected=true; } check(rejected,"truncated network state rejected");
     check(net::safeText("Hi\x1b[2J\n",32)=="Hi[2J","chat control codes filtered");
-    std::cout<<"Math, projection, ASCII, lighting, framebuffer, input and world checks passed\n";
+    Entity target,boss; target.hp=target.maxHp=100; target.armor=0; boss.id=500; boss.kind=Kind::Boss;
+    Combat hazard; hazard.areas.push_back({target.pos,5,3,1.5f,1,0,25,boss.id,"enemy_fire"});
+    std::vector<Entity*> targets{&target,&boss};
+    for(int i=0;i<89;++i) hazard.tick(1.f/60,targets,a,texts); check(target.hp==100,"telegraph deals no early damage");
+    for(int i=0;i<3;++i) hazard.tick(1.f/60,targets,a,texts); check(target.hp<100,"telegraph detonates after delay");
+    Game replayA(123),replayB(123); replayA.setScene("boss"); replayB.setScene("boss");
+    for(int i=0;i<600;++i) { replayA.tick(1.f/60); replayB.tick(1.f/60); }
+    check(net::snapshot(replayA,600)==net::snapshot(replayB,600),"fixed-step replay is deterministic");
+    Framebuffer tiny(1,1); replayA.render(tiny,16); check(tiny.cells.size()==1,"minimum terminal handled");
+    std::cout<<checks<<" checks passed: math, renderer, input, combat, AI, progression, boss, network and deterministic replay\n";
 } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; } }

@@ -6,7 +6,7 @@
 namespace er {
 Role parseRole(const std::string& name) { for(int i=0;i<5;++i) if(name==roleName(Role(i))) return Role(i); throw std::runtime_error("Unknown class: "+name); }
 Data::Data(const std::filesystem::path& requested) {
-    auto root=requested.empty()?std::filesystem::path(ER_DATA_DIR):requested;
+    auto root=requested.empty()?(std::filesystem::exists("data/classes.txt")?std::filesystem::path("data"):std::filesystem::path(ER_DATA_DIR)):requested;
     auto read=[&](const char* file,auto consume) { std::ifstream f(root/file); if(!f) throw std::runtime_error("Cannot read game data: "+(root/file).string()); std::string line; int row=0;
         while(std::getline(f,line)) { ++row; if(line.empty()||line[0]=='#') continue; std::istringstream in(line); consume(in); if(in.fail()) throw std::runtime_error(std::string(file)+":"+std::to_string(row)+": malformed row"); }
     };

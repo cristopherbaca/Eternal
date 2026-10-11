@@ -18,6 +18,8 @@ public:
 private:
     struct Blade { Vec2 bend{},velocity{}; };
     std::vector<Blade> blades=std::vector<Blade>(181*141);
+    std::vector<float> shadows=std::vector<float>(181*141,1.f);
 };
 void drawCharacter(Scene& s,Vec2 p,Color color,float time,bool moving=false,int style=1);
+void drawSkeleton(Scene& s,Vec2 p,Color color,float time);
 }

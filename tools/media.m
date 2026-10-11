@@ -1,8 +1,24 @@
-// Optional macOS tooling: clang tools/media.m -o /tmp/eternal-media -framework AppKit -framework AVFoundation -Wno-deprecated-declarations
+// Optional macOS tooling: clang tools/media.m -o /tmp/eternal-media -framework AppKit -framework AVFoundation -framework CoreMedia -Wno-deprecated-declarations -Wno-incompatible-pointer-types
 #import <AppKit/AppKit.h>
 #import <AVFoundation/AVFoundation.h>
 int main(int argc, const char **argv) { @autoreleasepool {
-    if (argc > 2 && !strcmp(argv[1], "render")) {
+    if (argc == 5 && !strcmp(argv[1], "compare")) {
+        NSImage *left = [[NSImage alloc] initWithContentsOfFile:@(argv[2])];
+        NSImage *right = [[NSImage alloc] initWithContentsOfFile:@(argv[3])];
+        if (!left || !right) return 1;
+        int height = 700, lw = (int)(left.size.width / left.size.height * height), rw = (int)(right.size.width / right.size.height * height);
+        NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL pixelsWide:lw+rw+24 pixelsHigh:height+32 bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO colorSpaceName:NSDeviceRGBColorSpace bytesPerRow:0 bitsPerPixel:0];
+        [NSGraphicsContext saveGraphicsState];
+        [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithBitmapImageRep:rep]];
+        [[NSColor colorWithRed:11/255.0 green:11/255.0 blue:26/255.0 alpha:1] setFill]; NSRectFill(NSMakeRect(0,0,lw+rw+24,height+32));
+        [left drawInRect:NSMakeRect(0,0,lw,height)]; [right drawInRect:NSMakeRect(lw+24,0,rw,height)];
+        NSDictionary *attr=@{NSFontAttributeName:[NSFont fontWithName:@"Menlo" size:14],NSForegroundColorAttributeName:NSColor.whiteColor};
+        [@"VIDEO REFERENCE" drawAtPoint:NSMakePoint(8,height+8) withAttributes:attr];
+        [@"ETERNALRPG / ACTUAL FRAMEBUFFER" drawAtPoint:NSMakePoint(lw+32,height+8) withAttributes:attr];
+        [NSGraphicsContext restoreGraphicsState];
+        [[rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}] writeToFile:@(argv[4]) atomically:YES]; return 0;
+    }
+    if (argc == 4 && !strcmp(argv[1], "render")) {
         NSData *data = [NSData dataWithContentsOfFile:@(argv[2])];
         NSDictionary *frame = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
         int w = [frame[@"width"] intValue], h = [frame[@"height"] intValue];
