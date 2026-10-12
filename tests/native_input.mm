@@ -6,12 +6,15 @@
 #include <stdexcept>
 static void check(bool ok,const char* message) { if(!ok) throw std::runtime_error(message); }
 int main(int argc,char** argv) { @autoreleasepool { try {
+    bool rendererOnly=argc>1&&std::strcmp(argv[1],"--renderer-only")==0;
+    NSString* depthCapture=[NSTemporaryDirectory() stringByAppendingPathComponent:[[NSUUID UUID].UUIDString stringByAppendingString:@".png"]];
+    if(rendererOnly) setenv("ER_CAPTURE",depthCapture.UTF8String,1);
     er::Window window;
     er::Game game; game.screen=er::Screen::Title;
     er::Framebuffer world(320,100),ui(160,50);
     game.render(world,16,&ui); window.present(world,ui);
     // Exercise GPU conversion and reallocations without depending on desktop focus.
-    if(argc>1&&std::strcmp(argv[1],"--renderer-only")==0) {
+    if(rendererOnly) {
         er::Terrain3D mesh; mesh.update(game.world,game.hero.pos);
         er::Camera camera; camera.perspective=true; camera.firstPerson=true;
         camera.terrain=&game.world; camera.center=game.hero.pos;
@@ -26,13 +29,29 @@ int main(int argc,char** argv) { @autoreleasepool { try {
             check(window.gpuMilliseconds()>0,"ASCII conversion completes successfully");
             check(window.interfaceSize()==hud,"world density preserves HUD size");
         }
+        // Identical captures prove hidden glyphs do not leak through terrain/sky.
+        for(auto& cell:ui.cells) cell={U'\0',er::white,er::background};
+        auto captureDepth=[&](float depth,bool glyphs) {
+            world.clear();
+            if(glyphs) for(auto& cell:world.cells) cell={U'#',{255,0,255},{255,0,255},depth};
+            while(!window.ready()) [NSThread sleepForTimeInterval:.001];
+            setenv("ER_CAPTURE",depthCapture.UTF8String,1);
+            check(window.present(world,ui,&mesh,&camera),"depth comparison capture submits");
+            return [NSData dataWithContentsOfFile:depthCapture];
+        };
+        NSData* baseline=captureDepth(0,false);
+        NSData* hidden=captureDepth(2,true);
+        check(baseline&&[baseline isEqualToData:hidden],"occluded glyphs reproduce unobstructed terrain exactly");
+        NSData* visible=captureDepth(.01f,true);
+        check(visible&&![baseline isEqualToData:visible],"near glyphs remain visible in front of terrain");
+        [[NSFileManager defaultManager] removeItemAtPath:depthCapture error:nil];
         window.raw3D(true);
         check(window.present(world,ui,&mesh,&camera),"raw preview after density changes");
         while(!window.ready()) [NSThread sleepForTimeInterval:.001];
         check(window.present(world,ui),"2D fallback after GPU conversion");
         while(!window.ready()) [NSThread sleepForTimeInterval:.001];
         check(window.gpuMilliseconds()>0,"fallback completes successfully");
-        std::cout<<"PASS: all ASCII densities, buffer resize, independent HUD, raw view and 2D fallback\n";
+        std::cout<<"PASS: all ASCII densities, buffer resize, GPU depth occlusion, independent HUD, raw view and 2D fallback\n";
         return 0;
     }
     for(int i=0;i<30;++i) { window.poll(true); [NSThread sleepForTimeInterval:.01]; }

@@ -31,7 +31,12 @@ void Scene::convert(Framebuffer& f) const {
                 if(dx*dx+dy*dy>4) glyph=edgeGlyph(dx,dy);
             }
         }
-        f.cells[i]={glyph,col,background};
+        float depth=0;
+        if(camera.perspective&&p.depth>-1e8f) {
+            const auto& lens=cameraView.lens;
+            depth=lens[3]/(lens[3]-lens[2])*(1+lens[2]/p.depth);
+        }
+        f.cells[i]={glyph,col,background,depth};
     }
 }
 }

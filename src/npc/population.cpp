@@ -53,8 +53,9 @@ void Population::labels(Framebuffer& f,const Camera& camera,Vec2 hero,Vec2 aim) 
     const Person* nearest=nullptr;
     for(const auto& p:nearby) if(!away.count(p.id)&&(!changes.count(p.id)||!changes.at(p.id).recruited)&&distance(p.pos,hero)<10&&(!nearest||distance(p.pos,hero)<distance(nearest->pos,hero))) nearest=&p;
     for(const auto& p:nearby) if(!away.count(p.id)&&(!changes.count(p.id)||!changes.at(p.id).recruited)&&(&p==nearest||distance(p.pos,aim)<1.2f)) {
-        Vec2 screen=camera.project(p.pos,5); std::string label=p.name+" / "+jobs[size_t(p.job)].name;
-        f.text(int(screen.x)-int(label.size()/2),int(screen.y),label,{164,217,189});
+        f.drawDepth=camera.deviceDepth(p.pos,2.8f);
+        Vec2 screen=camera.project(p.pos,camera.perspective?2.8f:5); std::string label=p.name+" / "+jobs[size_t(p.job)].name;
+        f.text(int(screen.x)-int(label.size()/2),int(screen.y),label,{164,217,189}); f.drawDepth=0;
     }
 }
 void Population::save(std::ostream& out) const {

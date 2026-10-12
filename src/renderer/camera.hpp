@@ -19,6 +19,9 @@ struct Camera {
     Vec2 center{0,12}; float zoom=1; int width=200,height=60;
     float scale() const { return zoom*std::max(.7f,height/60.f); }
     float ground(Vec2 p) const;
+    float viewDepth(Vec2 p,float height=0) const;
+    float deviceDepth(Vec2 p,float height=0) const;
+    float spriteScale(Vec2 p,float height=2.4f) const;
     View3D view() const;
     Vec2 project(Vec2 p,float z=0) const;
     bool pick(Vec2 screen,Vec2& hit) const;

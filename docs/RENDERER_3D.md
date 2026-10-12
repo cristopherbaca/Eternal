@@ -48,3 +48,15 @@ A 240-frame Detailed ASCII run measured 58.70 submissions/s at a 60 target, CPU 
 - [Previous first-person density](screenshots/19-first-person-ascii.png)
 
 Same seed/location as the earlier captures. The revised image has finer horizon contours and stronger continuous terrain colors. Flat placeholder creatures, terrain glyph bands and missing 3D vegetation remain visible gaps; density alone cannot supply the later object-model stage. The original reference videos are still unavailable, so these comparisons use existing game captures, not extracted reference frames. This is a scoped density correction, not completion of all Step 2 temporal/debug features or later renderer stages.
+
+## Creature occlusion, distance scaling and sprint
+
+World glyph cells now carry Metal device depth. The composite shader compares them against the offscreen terrain depth, so hills conceal creatures and their labels in both ASCII and raw views. Scene overlap uses camera distance rather than world Y. HUD text and the aiming crosshair remain independent overlays. This does not turn the existing glyph sprites into polygon models or make them cast shadows.
+
+Humanoids/skeletons use a 2.4-unit height, wolves 1.2 units, and the Dragon retains its larger silhouette. Perspective size follows distance, FOV and source-grid resolution. Close-up loops are clipped to the viewport. World labels track the creature height rather than a fixed screen offset.
+
+Hold **Shift + WASD** in the native window to sprint at 1.8× walking speed. Releasing Shift restores walking speed. Diagonal movement stays normalized; existing slopes, collision, water and slow penalties still apply. Menus and inactive windows disable sprint. Combat/classes, HUD layout, save schema and the seed system are unchanged.
+
+Validation: 260 core checks pass; GPU image comparisons under Metal API validation verify hidden and visible glyphs, plus density resize, raw preview and fallback. Hardware Shift/focus behavior was not verified interactively. Final native 240-frame result: 58.62 submissions/s at 60 target, 7.06 ms mean / 10.58 ms p95 CPU work, 0.287 ms terrain GPU and 2.331 ms conversion/composite GPU.
+
+[ASCII capture](screenshots/21-creature-depth-ascii.png) · [Matching raw view](screenshots/21-creature-depth-raw.png). The previous screenshots above show the same seed/location before depth rejection. Reference videos remain unavailable at the supplied paths.

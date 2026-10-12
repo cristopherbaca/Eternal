@@ -2,8 +2,9 @@
 #include "renderer/scene.hpp"
 namespace er {
 inline void drawDragon(Scene& s,Vec2 pos,float time) {
-    Vec2 base=s.camera.project(pos); float zoom=s.camera.scale(),flap=std::sin(time*2.8f);
-    for(int yy=int(base.y-28*zoom);yy<=int(base.y+4*zoom);++yy) for(int xx=int(base.x-39*zoom);xx<=int(base.x+39*zoom);++xx) {
+    Vec2 base=s.camera.project(pos); float zoom=s.camera.perspective?s.camera.spriteScale(pos,14)/4.2f:s.camera.scale(),flap=std::sin(time*2.8f);
+    if(zoom<=0) return;
+    for(int yy=std::max(0,int(base.y-28*zoom));yy<=std::min(s.camera.height-1,int(base.y+4*zoom));++yy) for(int xx=std::max(0,int(base.x-39*zoom));xx<=std::min(s.camera.width-1,int(base.x+39*zoom));++xx) {
         float x=(xx-base.x)/(2.2f*zoom),h=(base.y-yy)/(1.5f*zoom),a=std::abs(x);
         bool body=a<2.2f&&h>1&&h<11,head=((a<1.6f&&h>=11&&h<14)||(x>0&&x<4.5f&&h>10.7f&&h<12.4f));
         float upper=8+(a-2)*(.48f+flap*.13f),lower=3+(a-2)*.36f+std::abs(std::sin(a*.5f))*1.5f;

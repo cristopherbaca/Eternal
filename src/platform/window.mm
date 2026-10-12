@@ -46,7 +46,7 @@ struct Window::Impl {
 static const char* shader=R"(
 #include <metal_stdlib>
 using namespace metal;
-struct Cell { uint glyph; uint fg; uint bg; uint pad; };
+struct Cell { uint glyph; uint fg; uint bg; float depth; };
 struct Vertex { float4 position [[position]]; float2 uv; };
 vertex Vertex vertices(uint id [[vertex_id]]) {
     float2 p=float2((id==1)?3.0:-1.0,(id==2)?3.0:-1.0);
@@ -119,10 +119,12 @@ kernel void asciiCells(texture2d<float,access::read> color [[texture(0)]],
 fragment float4 draw(Vertex in [[stage_in]], constant Cell* cells [[buffer(0)]],
                      constant uint2& grid [[buffer(1)]], texture2d<float> atlas [[texture(0)]],
                      constant Cell* interface [[buffer(2)]], constant uint2& uiGrid [[buffer(3)]],
-                     texture2d<float> sceneColor [[texture(1)]],constant uint& mode [[buffer(4)]],constant float& backdrop [[buffer(5)]],constant Cell* terrainCells [[buffer(6)]]) {
+                     texture2d<float> sceneColor [[texture(1)]],constant uint& mode [[buffer(4)]],constant float& backdrop [[buffer(5)]],constant Cell* terrainCells [[buffer(6)]],depth2d<float> terrainDepth [[texture(2)]]) {
     float2 p=clamp(in.uv,float2(0),float2(0.999999))*float2(grid);
     uint2 cell=uint2(p);
     Cell c=cells[cell.y*grid.x+cell.x];
+    if(mode!=0&&c.depth>0&&c.depth>terrainDepth.read(cell)+.000002) c.glyph=32;
+    bool worldVisible=c.glyph>32;
     float3 source=float3(0);
     if(mode!=0) {
         source=sceneColor.read(min(cell,uint2(sceneColor.get_width()-1,sceneColor.get_height()-1))).rgb*backdrop;
@@ -133,7 +135,7 @@ fragment float4 draw(Vertex in [[stage_in]], constant Cell* cells [[buffer(0)]],
     }
     float2 ui=clamp(in.uv,float2(0),float2(0.999999))*float2(uiGrid);
     Cell overlay=interface[uint(ui.y)*uiGrid.x+uint(ui.x)];
-    if(mode==2&&overlay.glyph==0&&cells[cell.y*grid.x+cell.x].glyph<=32) return float4(source,1);
+    if(mode==2&&overlay.glyph==0&&!worldVisible) return float4(source,1);
     if(overlay.glyph!=0) { c=overlay; p=ui; }
     float2 tile=float2(c.glyph%16,c.glyph/16);
     float2 local=fract(p);
@@ -170,6 +172,9 @@ Window::Window():impl(std::make_unique<Impl>()) {
         MTLDepthStencilDescriptor* depth=[MTLDepthStencilDescriptor new]; depth.depthCompareFunction=MTLCompareFunctionLess; depth.depthWriteEnabled=YES;
         v.depthState=[v.device newDepthStencilStateWithDescriptor:depth];
         v.queue=[v.device newCommandQueue];
+        auto dummyDepth=[MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float width:1 height:1 mipmapped:NO];
+        dummyDepth.usage=MTLTextureUsageShaderRead; dummyDepth.storageMode=MTLStorageModePrivate;
+        v.depth3D=[v.device newTextureWithDescriptor:dummyDepth];
         // Cache all ASCII and box/block glyphs once, instead of shaping text every frame.
         std::vector<uint8_t> bitmap(256*432);
         CGColorSpaceRef gray=CGColorSpaceCreateDeviceGray();
@@ -267,6 +272,7 @@ Input Window::poll(bool menu,bool textEntry,bool firstPerson) {
             if(!consumed) [NSApp sendEvent:e];
         }
         if(!v.window.keyWindow) v.held.fill(false);
+        input.sprint=v.window.keyWindow&&!menu&&([NSEvent modifierFlags]&NSEventModifierFlagShift);
         // Hardware key-up events remove the terminal keyboard-repeat delay.
         for(char k:std::string("wasd")) if(v.held[size_t(k)]) input.movementKeys+=k;
         if(v.window.keyWindow||clicked) {
@@ -302,7 +308,7 @@ bool Window::present(const Framebuffer& frame,const Framebuffer& interface,const
         if(!CGSizeEqualToSize(v.layer.drawableSize,drawableSize)) v.layer.drawableSize=drawableSize;
         id<CAMetalDrawable> drawable=[v.layer nextDrawable];
         if(!drawable) return false;
-        struct GPUCell { uint32_t glyph,fg,bg,pad; };
+        struct GPUCell { uint32_t glyph,fg,bg; float depth; };
         auto upload=[&](const Framebuffer& source,id<MTLBuffer> __strong& buffer) {
             size_t bytes=source.cells.size()*sizeof(GPUCell);
             if(!buffer||buffer.length<bytes) buffer=[v.device newBufferWithLength:bytes options:MTLResourceStorageModeShared];
@@ -311,7 +317,7 @@ bool Window::present(const Framebuffer& frame,const Framebuffer& interface,const
             for(size_t i=0;i<source.cells.size();++i) {
                 const auto& c=source.cells[i]; uint32_t g=c.glyph;
                 g=g<128?g:(g>=0x2500&&g<0x25a0?128+g-0x2500:uint32_t('?'));
-                cells[i]={g,packed(c.fg),packed(c.bg),0};
+                cells[i]={g,packed(c.fg),packed(c.bg),c.depth};
             }
         };
         upload(frame,v.cells); upload(interface,v.interface);
@@ -367,6 +373,7 @@ bool Window::present(const Framebuffer& frame,const Framebuffer& interface,const
         [encoder setFragmentBytes:grid length:sizeof(grid) atIndex:1];
         [encoder setFragmentTexture:v.atlas atIndex:0];
         [encoder setFragmentTexture:use3D?v.color3D:v.atlas atIndex:1];
+        [encoder setFragmentTexture:v.depth3D atIndex:2];
         [encoder setFragmentBytes:&backdrop length:sizeof(backdrop) atIndex:5];
         uint32_t mode=use3D?(v.raw?2:1):0; [encoder setFragmentBytes:&mode length:sizeof(mode) atIndex:4];
         [encoder setFragmentBuffer:v.interface offset:0 atIndex:2];

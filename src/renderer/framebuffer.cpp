@@ -11,7 +11,7 @@ std::string utf8(char32_t c) {
 }
 void Framebuffer::resize(int w,int h) { width=clamp(w,1,500); height=clamp(h,1,180); cells.assign(size_t(width*height),{}); previous.clear(); }
 void Framebuffer::clear() { std::fill(cells.begin(),cells.end(),Cell{}); }
-void Framebuffer::put(int x,int y,char32_t g,Color fg,Color bg) { if(x>=0&&y>=0&&x<width&&y<height) cells[size_t(y*width+x)]={g,fg,bg}; }
+void Framebuffer::put(int x,int y,char32_t g,Color fg,Color bg) { if(x>=0&&y>=0&&x<width&&y<height) cells[size_t(y*width+x)]={g,fg,bg,drawDepth}; }
 void Framebuffer::text(int x,int y,const std::string& s,Color fg) {
     for(size_t i=0;i<s.size();) {
         auto c=static_cast<unsigned char>(s[i++]); char32_t u=c; int rest=0;

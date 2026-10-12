@@ -376,26 +376,40 @@ void drawCharacter(Scene& s,Vec2 p,Color color,float time,bool moving,int style)
         {"   +   ","  (o)  ","  /+\\ ","  |#|  ","  / \\ "},
         {"  .^.  ","  (:)  "," </#\\>","   #   ","  / \\ "}};
     const auto& sprite=sprites[clamp(style,0,4)];
-    Vec2 base=s.camera.project(p); float stride=moving?std::sin(time*13):0,scale=s.camera.scale();
-    for(int y=0;y<int(std::ceil(5*scale));++y) for(int x=0;x<int(std::ceil(7*scale));++x) {
+    Vec2 base=s.camera.project(p); float stride=moving?std::sin(time*13):0,scale=s.camera.spriteScale(p);
+    if(scale<=0) return;
+    for(int y=std::max(0,int(5*scale)-int(base.y));y<std::min(int(std::ceil(5*scale)),s.camera.height+int(5*scale)-int(base.y));++y) for(int x=std::max(0,int(3*scale)-int(base.x)-int(scale)-1);x<std::min(int(std::ceil(7*scale)),s.camera.width+int(3*scale)-int(base.x)+int(scale)+1);++x) {
         int sy=clamp(int(y/scale),0,4),sx=clamp(int(x/scale),0,6);
         // Sprite rows are padded by their terminator; absent cells stay transparent.
         size_t length=std::char_traits<char>::length(sprite[sy]);
         if(size_t(sx)>=length||sprite[sy][sx]==' ') continue;
         int xx=int(base.x)+x-int(3*scale)+(sy==4?int(stride*scale):0);
         Color col=sy==1?Color{179,164,137}:color;
-        s.put(xx,int(base.y)-int(5*scale)+y,p,float(5-sy)*.7f,col,char32_t(sprite[sy][sx]),p.y+.2f,{0,-1,.7f});
+        s.put(xx,int(base.y)-int(5*scale)+y,p,s.camera.perspective?2.4f*(1-(y+.5f)/(5*scale)):float(5-sy)*.7f,col,char32_t(sprite[sy][sx]),p.y+.2f,{0,-1,.7f});
     }
     s.put(int(base.x+4*scale),int(base.y-3*scale),p,2,{199,160,77},U'|',p.y+.3f);
 }
+void drawWolf(Scene& s,Vec2 p,float time) {
+    const char* rows[]={R"( /\__/\ )",R"(( o  o )>)",R"( /|--|\ )"};
+    Vec2 base=s.camera.project(p); float scale=s.camera.spriteScale(p,1.2f)*5/3;
+    if(scale<=0) return;
+    for(int y=std::max(0,int(3*scale)-int(base.y));y<std::min(int(std::ceil(3*scale)),s.camera.height+int(3*scale)-int(base.y));++y) for(int x=std::max(0,int(4*scale)-int(base.x));x<std::min(int(std::ceil(9*scale)),s.camera.width+int(4*scale)-int(base.x));++x) {
+        int sy=clamp(int(y/scale),0,2),sx=clamp(int(x/scale),0,8);
+        if(size_t(sx)>=std::char_traits<char>::length(rows[sy])||rows[sy][sx]==' ') continue;
+        s.put(int(base.x)+(x-int(4*scale)),int(base.y)-int(3*scale)+y,p,1.2f*(1-(y+.5f)/(3*scale)),
+              sy==1?Color{220,179,128}:Color{172,168,166},char32_t(rows[sy][sx]),p.y,{0,-1,.7f});
+    }
+    (void)time;
+}
 void drawSkeleton(Scene& s,Vec2 p,Color color,float time) {
     const char* rows[]={"  (o)  ","  /|\\ "," -{#}- ","   |   ","  / \\ "};
-    Vec2 base=s.camera.project(p); float scale=s.camera.scale();
-    for(int y=0;y<int(std::ceil(5*scale));++y) for(int x=0;x<int(std::ceil(7*scale));++x) {
+    Vec2 base=s.camera.project(p); float scale=s.camera.spriteScale(p);
+    if(scale<=0) return;
+    for(int y=std::max(0,int(5*scale)-int(base.y));y<std::min(int(std::ceil(5*scale)),s.camera.height+int(5*scale)-int(base.y));++y) for(int x=std::max(0,int(3*scale)-int(base.x)-int(scale)-1);x<std::min(int(std::ceil(7*scale)),s.camera.width+int(3*scale)-int(base.x)+int(scale)+1);++x) {
         int sy=clamp(int(y/scale),0,4),sx=clamp(int(x/scale),0,6);
         if(size_t(sx)>=std::char_traits<char>::length(rows[sy])||rows[sy][sx]==' ') continue;
         int sway=sy==4?int(std::sin(time*9)*scale):0;
-        s.put(int(base.x)+x-int(3*scale)+sway,int(base.y)-int(5*scale)+y,p,float(5-sy),color,char32_t(rows[sy][sx]),p.y+.2f,{0,-1,.8f});
+        s.put(int(base.x)+x-int(3*scale)+sway,int(base.y)-int(5*scale)+y,p,s.camera.perspective?2.4f*(1-(y+.5f)/(5*scale)):float(5-sy),color,char32_t(rows[sy][sx]),p.y+.2f,{0,-1,.8f});
     }
 }
 }

@@ -24,6 +24,7 @@ New adventures have **God mode off by default**. Enable it in character creation
 | W/S or arrows in menus | Select an option |
 | A/D or Left/Right in Settings | Change selected setting |
 | WASD | Move |
+| Hold Shift + WASD | Sprint (1.8× speed, native window) |
 | Mouse / arrow keys in game | Aim |
 | Click / Space | Primary ability |
 | 1–6 | Cast abilities |

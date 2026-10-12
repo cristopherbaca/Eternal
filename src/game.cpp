@@ -141,7 +141,7 @@ void Game::input(const Input& in) {
         direction.y=float(movement.find('s')!=std::string::npos)-float(movement.find('w')!=std::string::npos);
     }
     if(camera.perspective) direction={direction.x*std::cos(camera.yaw)-direction.y*std::sin(camera.yaw),-direction.x*std::sin(camera.yaw)-direction.y*std::cos(camera.yaw)};
-    if(length(direction)>0) { velocity=normalized(direction)*hero.speed; movementTime=.16f; }
+    if(length(direction)>0) { velocity=normalized(direction)*hero.speed*(in.sprint?1.8f:1.f); movementTime=.16f; }
     if(in.scroll) camera.zoom=clamp(camera.zoom+in.scroll*.1f,.55f,2.f);
     if(in.mouseX>=0) { Vec2 hit; Vec2 pixel=camera.perspective&&camera.firstPerson?Vec2{camera.width*.5f,camera.height*.5f}:Vec2{float(in.mouseX),float(in.mouseY)};
         if(camera.pick(pixel,hit)) aim=hit;
@@ -202,7 +202,8 @@ void Game::render(Framebuffer& f,float ms,Framebuffer* interface) {
     scene.begin(camera); if(!camera.perspective) world.render(scene,time); if(!world.interior) { atlas.focus(hero.pos); atlas.render(scene,time); population.render(scene,time); environment.render(scene,time); renderEscorts(scene); }
     for(const auto& e:party) if(e.alive) drawCharacter(scene,e.pos,e.color,time,length(e.velocity)>0,int(e.role));
     for(const auto& e:mobs) if(e.alive) {
-        if(e.name=="Wolf") { scene.point(e.pos,1,{172,168,166},U'w'); scene.point(e.pos+Vec2{1,0},1.5f,{220,179,128},U'>'); }
+        if(e.name=="Wolf"&&camera.perspective) drawWolf(scene,e.pos,time);
+        else if(e.name=="Wolf") { scene.point(e.pos,1,{172,168,166},U'w'); scene.point(e.pos+Vec2{1,0},1.5f,{220,179,128},U'>'); }
         else if(e.archetype==0) drawSkeleton(scene,e.pos,mix(e.color,{237,128,104},.55f),time); else drawCharacter(scene,e.pos,mix(e.color,{237,128,104},.55f),time,length(e.velocity)>0,int(e.role));
     }
     for(const auto& item:loot) scene.point(item.pos,.3f,{192,171,109},U'*',{0,0,1},.2f);
@@ -213,7 +214,7 @@ void Game::render(Framebuffer& f,float ms,Framebuffer* interface) {
     if(hero.alive&&!(camera.perspective&&camera.firstPerson)) playerAvatar(f,camera,hero,time);
     if(showNames) { if(!(camera.perspective&&camera.firstPerson)) nameLabel(f,camera,hero); for(const auto& e:party) nameLabel(f,camera,e,e.id==hero.target);
     for(const auto& e:mobs) nameLabel(f,camera,e,e.id==hero.target);
-    for(const auto& item:loot) { Vec2 p=camera.project(item.pos); if(p.y>2&&p.y<f.height-5) f.text(int(p.x)-4,int(p.y)-1,data.items[size_t(item.item)].name,{151,139,111}); }
+    for(const auto& item:loot) { Vec2 p=camera.project(item.pos); f.drawDepth=camera.deviceDepth(item.pos,.3f); if(p.y>2&&p.y<f.height-5) f.text(int(p.x)-4,int(p.y)-1,data.items[size_t(item.item)].name,{151,139,111}); f.drawDepth=0; }
     if(!world.interior) nameLabel(f,camera,dragon,dragon.id==hero.target);
     }
     if(!world.interior) { atlas.labels(f,camera,hero.pos); population.labels(f,camera,hero.pos,aim); }

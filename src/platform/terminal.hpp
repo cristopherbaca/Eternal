@@ -8,7 +8,7 @@
 #include <termios.h>
 #endif
 namespace er {
-struct Input { std::string keys,movementKeys; int mouseX=-1,mouseY=-1,scroll=0; bool click=false,cursorReport=false,heldMovement=false; float orbitX=0,orbitY=0; };
+struct Input { std::string keys,movementKeys; int mouseX=-1,mouseY=-1,scroll=0; bool click=false,cursorReport=false,heldMovement=false,sprint=false; float orbitX=0,orbitY=0; };
 class InputParser { public: Input feed(const std::string& bytes); private: std::string pending; std::chrono::steady_clock::time_point escapeSince{}; };
 class Terminal {
 public:

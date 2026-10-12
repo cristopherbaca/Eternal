@@ -5,11 +5,13 @@
 namespace er {
 struct Cell {
     char32_t glyph=U' '; Color fg=white,bg=background;
+    float depth=0; // Metal device depth; zero keeps interface cells unoccluded.
     bool operator==(const Cell& b) const { return glyph==b.glyph&&fg==b.fg&&bg==b.bg; }
 };
 std::string utf8(char32_t c);
 class Framebuffer {
 public:
+    float drawDepth=0;
     int width=0,height=0; std::vector<Cell> cells;
     Framebuffer(int w=200,int h=60) { resize(w,h); }
     void resize(int w,int h); void clear();

@@ -13,12 +13,15 @@ void bar(Framebuffer& f,int x,int y,int w,float v,float max,Color color) {
 void nameLabel(Framebuffer& f,const Camera& c,const Entity& e,bool targeted) {
     if(!e.alive) return;
     Vec2 p=c.project(e.pos); int y=int(p.y)-(e.kind==Kind::Player?(c.height<80?9:12):int((e.kind==Kind::Boss?16:7)*c.scale())); int x=int(p.x)-int(e.name.size()/2);
+    if(c.perspective) { p=c.project(e.pos,e.kind==Kind::Boss?12:2.8f); y=int(p.y); x=int(p.x)-int(e.name.size()/2); }
     if(y<2||y>=f.height-4) return;
+    f.drawDepth=c.deviceDepth(e.pos,e.kind==Kind::Boss?12:2.8f);
     f.text(x,y,e.name,e.kind==Kind::Player?Color{213,239,246}:targeted?Color{255,164,138}:white);
     if(e.hp<e.maxHp||targeted) bar(f,int(p.x)-3,y+1,7,e.hp,e.maxHp,{200,66,62});
+    f.drawDepth=0;
 }
 void floatingLabels(Framebuffer& f,const Camera& c,const std::vector<FloatingText>& texts) {
-    for(const auto& t:texts) { Vec2 p=c.project(t.pos); f.text(int(p.x)-int(t.text.size()/2),int(p.y)-7-int((t.maxLife-t.life)*4),t.text,t.color*clamp(t.life/.5f,0.f,1.f)); }
+    for(const auto& t:texts) { f.drawDepth=c.deviceDepth(t.pos,2.8f); Vec2 p=c.project(t.pos); f.text(int(p.x)-int(t.text.size()/2),int(p.y)-7-int((t.maxLife-t.life)*4),t.text,t.color*clamp(t.life/.5f,0.f,1.f)); f.drawDepth=0; }
 }
 void playerAvatar(Framebuffer& f,const Camera& camera,const Entity& hero,float time) {
     // Compact armor: each symbol is drawn once, never enlarged into repeated blocks.

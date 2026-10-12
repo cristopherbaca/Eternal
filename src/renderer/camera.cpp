@@ -18,6 +18,21 @@ View3D Camera::view() const {
     return {{eye.x,eye.y,eye.z,0},{cy,-sy,0,0},{sy*st,cy*st,ct,0},{forward.x,forward.y,forward.z,0},
         {1/std::tan((firstPerson?clamp(fov/zoom,35*pi/180,95*pi/180):fov)*.5f),float(width)/(2*height),firstPerson?.08f:.5f,280}};
 }
+float Camera::viewDepth(Vec2 p,float height) const {
+    auto v=view(); return (p.x-v.eye[0])*v.forward[0]+(p.y-v.eye[1])*v.forward[1]+(ground(p)+height-v.eye[2])*v.forward[2];
+}
+float Camera::deviceDepth(Vec2 p,float height) const {
+    if(!perspective) return 0;
+    auto v=view(); float z=viewDepth(p,height);
+    if(z<=v.lens[2]||z>=v.lens[3]) return 2;
+    return v.lens[3]/(v.lens[3]-v.lens[2])*(1-v.lens[2]/z);
+}
+float Camera::spriteScale(Vec2 p,float physicalHeight) const {
+    if(!perspective) return scale();
+    auto v=view(); float z=viewDepth(p,physicalHeight*.5f);
+    if(z<=v.lens[2]||z>=v.lens[3]) return 0;
+    return std::min(float(height),physicalHeight*v.lens[0]*height/(10*z));
+}
 Vec2 Camera::project(Vec2 p,float z) const {
     if(!perspective) { float s=scale(); return {width*.5f+(p.x-center.x)*2.2f*s,height*.55f+(p.y-center.y)*.9f*s-(z+ground(p)-ground(center))*1.5f*s}; }
     auto v=view(); Vec3 d{p.x-v.eye[0],p.y-v.eye[1],ground(p)+z-v.eye[2]};

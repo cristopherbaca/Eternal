@@ -63,5 +63,6 @@ private:
     std::vector<float> shadows=std::vector<float>(181*141,1.f);
 };
 void drawCharacter(Scene& s,Vec2 p,Color color,float time,bool moving=false,int style=1);
+void drawWolf(Scene& s,Vec2 p,float time);
 void drawSkeleton(Scene& s,Vec2 p,Color color,float time);
 }
