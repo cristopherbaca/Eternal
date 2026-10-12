@@ -24,3 +24,11 @@ A 240-frame native run at 160×50 source cells measured 59.77 submissions/s on t
 Raw and ASCII captures use seed 42, `--no-mods --position -984 -3000 --demo`. The old supplied video paths are absent and ffmpeg is unavailable; no matching extracted video frame could be inspected. The reference links are repository screenshots, not substituted video frames.
 
 The foundation resolves the key geometric gap: perspective triangles, real terrain depth occlusion, an orbit camera and matching terrain picking. The current ramp still produces broad uniform glyph bands. Next, Step 2 will add depth/normal edges, finer slope readability, world-stable detail and temporal stabilization. Reference vegetation volume, soft shadows, warm glow, reflective water and reactive grass remain Steps 3–5. Camera collision and final fallback polish remain Step 6. Wait for the user's “next” before Step 2.
+
+## First-person correction
+
+The native 3D view now defaults to a player-eye camera, 1.75 world units above the terrain. Yaw and pitch rotate in place; camera position follows the player directly. Mouse look is captured while the game window is active in gameplay, and released for menus, loss of focus and exit. WASD is camera-relative, the center crosshair controls terrain aiming, and the local player's sprite/name are hidden. Existing planar combat remains unchanged. `--third-person` selects the previous orbit view. F8 still toggles raw/ASCII, F9 diagnostics, and the wheel changes view magnification. Distant glyph objects are clipped to the terrain far plane.
+
+253 core checks pass, including eye position, crosshair projection, rotation in place and far clipping. The native app successfully rendered both [raw](screenshots/19-first-person-raw.png) and [ASCII](screenshots/19-first-person-ascii.png) captures. Full native input automation did not pass in this run because macOS did not consistently give the test window keyboard focus (including the pre-existing held-WD check); active mouse capture still needs a focused interactive desktop check.
+
+This corrects the intended viewpoint. The broad brightness bands and temporary glyph models remain the next visual work; they are not presented as finished first-person graphics. Step 2 is still waiting for the user's next instruction.

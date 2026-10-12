@@ -34,7 +34,7 @@ struct Window::Impl {
     id<MTLTexture> color3D,normal3D,depth3D;
     id<MTLBuffer> meshBuffer;
     size_t meshVertices=0; uint64_t meshRevision=~uint64_t(0);
-    bool raw=false,debug=false;
+    bool raw=false,debug=false,mouseCaptured=false;
     id<MTLTexture> atlas;
     id<MTLBuffer> cells,interface;
     id<MTLCommandBuffer> pending,pendingTerrain;
@@ -161,7 +161,7 @@ Window::Window():impl(std::make_unique<Impl>()) {
         [v.window makeMainWindow]; [v.window makeFirstResponder:v.window.contentView];
     }
 }
-Window::~Window() { @autoreleasepool { [impl->pending waitUntilCompleted]; [impl->window close]; } }
+Window::~Window() { @autoreleasepool { if(impl->mouseCaptured) { CGAssociateMouseAndMouseCursorPosition(true); [NSCursor unhide]; } [impl->pending waitUntilCompleted]; [impl->window close]; } }
 std::pair<int,int> Window::size(int detail) const {
     NSSize s=impl->window.contentView.bounds.size;
     return {clamp(int(s.width/(detail==0?6:detail==2?3:4)),40,500),clamp(int(s.height/(detail==0?12:detail==2?6:8)),16,180)};
@@ -170,9 +170,15 @@ std::pair<int,int> Window::interfaceSize() const {
     NSSize s=impl->window.contentView.bounds.size;
     return {clamp(int(s.width/8),40,250),clamp(int(s.height/16),16,100)};
 }
-Input Window::poll(bool menu,bool textEntry) {
+Input Window::poll(bool menu,bool textEntry,bool firstPerson) {
     @autoreleasepool {
         Input input; input.heldMovement=true; auto& v=*impl;
+        bool capture=firstPerson&&!menu&&v.window.keyWindow;
+        if(capture!=v.mouseCaptured) {
+            v.mouseCaptured=capture; CGAssociateMouseAndMouseCursorPosition(!capture);
+            if(capture) [NSCursor hide]; else [NSCursor unhide];
+            v.window.acceptsMouseMovedEvents=capture;
+        }
         NSEvent* e; NSPoint clickPoint{}; bool clicked=false;
         while((e=[NSApp nextEventMatchingMask:NSEventMaskAny untilDate:[NSDate distantPast] inMode:NSDefaultRunLoopMode dequeue:YES])) {
             bool consumed=false;
@@ -205,7 +211,7 @@ Input Window::poll(bool menu,bool textEntry) {
                     clickPoint=[v.window.contentView convertPoint:e.locationInWindow fromView:nil];
                     clicked=true; input.click=true; consumed=true;
                 }
-                if(!menu&&e.type==NSEventTypeRightMouseDragged) { input.orbitX+=e.deltaX; input.orbitY+=e.deltaY; consumed=true; }
+                if(!menu&&(e.type==NSEventTypeRightMouseDragged||(v.mouseCaptured&&(e.type==NSEventTypeMouseMoved||e.type==NSEventTypeLeftMouseDragged)))) { input.orbitX+=e.deltaX; input.orbitY+=e.deltaY; consumed=true; }
                 if(e.type==NSEventTypeLeftMouseUp) consumed=true;
                 if(e.type==NSEventTypeScrollWheel) input.scroll+=e.scrollingDeltaY>0?1:e.scrollingDeltaY<0?-1:0;
             }
@@ -222,6 +228,7 @@ Input Window::poll(bool menu,bool textEntry) {
                 input.mouseY=int((bounds.height-mouse.y)/bounds.height*rows);
             }
         }
+        if(v.mouseCaptured) { input.mouseX=v.cols/2; input.mouseY=v.rows/2; }
         if(!v.window.visible) input.keys+='q';
         return input;
     }
@@ -229,6 +236,7 @@ Input Window::poll(bool menu,bool textEntry) {
 bool Window::ready() const { return !impl->pending||impl->pending.status>=MTLCommandBufferStatusCompleted; }
 void Window::raw3D(bool enabled) { impl->raw=enabled; }
 bool Window::raw3D() const { return impl->raw; }
+bool Window::mouseCaptured() const { return impl->mouseCaptured; }
 bool Window::debug3D() const { return impl->debug; }
 double Window::gpuMilliseconds() const { auto p=impl->pending; return p&&p.status==MTLCommandBufferStatusCompleted?(p.GPUEndTime-p.GPUStartTime)*1000:0; }
 double Window::terrainMilliseconds() const { auto p=impl->pendingTerrain; return p&&p.status==MTLCommandBufferStatusCompleted?(p.GPUEndTime-p.GPUStartTime)*1000:0; }

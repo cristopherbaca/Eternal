@@ -13,7 +13,7 @@
 int main(int argc,char** argv) {
     try {
         bool headless=false,demo=false,native=false,normal=false,fpsExplicit=false,classExplicit=false,noMods=false,listMods=false,positionSet=false,worldReport=false;
-        bool renderer2D=false,raw3D=false;
+        bool renderer2D=false,raw3D=false,thirdPerson=false;
         er::Vec2 startPosition{};
         int frames=0,w=200,h=60,fps=60;
         uint64_t seed=42;
@@ -25,6 +25,7 @@ int main(int argc,char** argv) {
             if(arg=="--headless"||arg=="--benchmark") headless=true;
             else if(arg=="--window") native=true;
             else if(arg=="--renderer-2d") renderer2D=true;
+            else if(arg=="--third-person") thirdPerson=true;
             else if(arg=="--raw-3d") raw3D=true;
             else if(arg=="--world-report") worldReport=true;
             else if(arg=="--demo") demo=true;
@@ -51,7 +52,7 @@ int main(int argc,char** argv) {
                     "Tab target, C class, I inventory, E loot, B boss, R respawn, M map, Esc/P pause, Q quit\n"
                     "--scene grass|forest|ruins|water|boss  --class Warrior|Mage|Archer|Cleric|Rogue\n"
                     "--window (macOS Metal perspective ASCII window), --raw-3d, --renderer-2d\n"
-                    "3D: right-drag orbit, wheel zoom, F8 raw/ASCII, F9 renderer diagnostics\n"
+                    "3D: first-person mouse look, WASD walk, Esc release mouse; --third-person for orbit\n"
                     "--seed N  --name NAME  --fps 60  --data DIR  --demo\n"
                     "--mod ID --mods-dir DIR --no-mods --list-mods --position X Y\n"
                     "--world-report lists generated sites, residents and history for the seed\n"
@@ -97,7 +98,7 @@ int main(int argc,char** argv) {
         er::Terrain3D terrain3D;
         if(window) window->raw3D(raw3D);
 #else
-        (void)raw3D; (void)renderer2D;
+        (void)raw3D; (void)renderer2D; (void)thirdPerson;
 #endif
         game.applyPlayerClass(er::parseRole(className));
         game.setScene(scene);
@@ -129,8 +130,11 @@ int main(int argc,char** argv) {
             auto input=terminal.poll();
 #ifdef __APPLE__
             game.camera.perspective=window&&!renderer2D&&!game.world.interior;
+            if(!thirdPerson&&!game.camera.firstPerson) game.camera.fov=70*er::pi/180;
+            game.camera.firstPerson=!thirdPerson;
             game.camera.terrain=&game.world;
-            if(window) input=window->poll(game.screen!=er::Screen::Playing,game.editingField);
+            if(game.camera.perspective&&game.camera.firstPerson) game.camera.center=game.hero.pos;
+            if(window) input=window->poll(game.screen!=er::Screen::Playing,game.editingField,game.camera.perspective&&game.camera.firstPerson&&!game.frontEnd());
 #endif
             game.input(input);
             if(game.quit) break;
@@ -197,7 +201,7 @@ int main(int argc,char** argv) {
                     if(perspective&&window->debug3D()) {
                         int x=std::max(0,interface.width-49),y=std::max(0,interface.height-14);
                         interface.text(x,y,"3D FOUNDATION | F8 raw/ASCII | F9 close");
-                        interface.text(x,y+1,"Drag: orbit | Wheel: zoom | [ ] FOV");
+                        interface.text(x,y+1,"Mouse: look | Wheel: zoom | [ ] FOV");
                         interface.text(x,y+2,"Terrain GPU: "+std::to_string(window->terrainMilliseconds())+" ms");
                         interface.text(x,y+3,"Composite GPU: "+std::to_string(window->gpuMilliseconds())+" ms");
                         interface.text(x,y+4,"Chunks: "+std::to_string(terrain3D.chunks.size()));

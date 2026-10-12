@@ -108,3 +108,10 @@ Reference: earlier supplied video paths are currently absent and ffmpeg is not i
 - 247 core checks and native input/GPU tests pass. Existing combat, spell and save checks remain passing. Native 240-frame result: 59.77 submissions/s, CPU 6.00 ms mean / 7.48 ms p95, terrain GPU 0.313 ms mean, composite GPU 2.357 ms mean.
 - Inspected raw/ASCII native captures; saved in docs/screenshots/18-3d-foundation-*.png. References available only as repository screenshots: original video paths are missing. Biggest remaining visual gap is uniform brightness glyph bands; Step 2 addresses edges/stability. Models, shadows, grass and reflections remain later steps.
 - Budget remaining: unavailable. Stop here and wait for “next”; do not start Step 2.
+
+## First-person camera correction
+- User clarified that the intended view is first-person. Native 3D now defaults to player eye level, immediate positional following, captured mouse look, camera-relative WASD and center-crosshair terrain aiming. Own sprite/name are omitted. Menus/focus loss/exit release capture. --third-person keeps the orbit option.
+- Corrected far-plane clipping so the distant Dragon cannot appear across the entire world as a giant glyph overlay. Combat, classes, saves and HUD layout remain unchanged.
+- Build succeeds and 253 core checks pass. Native raw/ASCII captures saved under docs/screenshots/19-first-person-*.png. Native input automation could not reliably acquire macOS keyboard focus, so its active-capture/held-key checks are not claimed as passing.
+- Visual conversion is still the basic Step 1 ramp with placeholder glyph entities. Next: improve ASCII slope/edge readability, then the remaining renderer stages. Budget remaining unavailable; stop for user review.
+- First-person native 120-frame timing: 57.88 submissions/s at 60 target, 2.77 ms mean / 6.05 ms p95 CPU work, 0.218 ms terrain GPU and 2.164 ms composite GPU.

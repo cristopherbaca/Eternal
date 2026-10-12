@@ -11,6 +11,8 @@ int main() { @autoreleasepool { try {
     game.render(world,16,&ui); window.present(world,ui);
     for(int i=0;i<30;++i) { window.poll(true); [NSThread sleepForTimeInterval:.01]; }
     NSWindow* native=[NSApp mainWindow];
+    if(!native) for(NSWindow* candidate in [NSApp windows]) if([candidate.title hasPrefix:@"EternalRPG"]) { native=candidate; break; }
+    [native makeMainWindow]; [native makeKeyAndOrderFront:nil];
     check(native!=nil,"game has a main window");
     check(native.firstResponder==native.contentView,"game view owns keyboard focus");
     auto key=[&](NSString* text,unsigned short code,bool down) {
@@ -92,6 +94,20 @@ int main() { @autoreleasepool { try {
     [NSApp postEvent:aimClick atStart:NO]; game.hero.cooldown[0]=0; game.hero.mp=game.hero.maxMp;
     game.input(window.poll()); game.tick(1.f/60);
     check(game.hero.cooldown[0]>0&&er::distance(game.aim,game.hero.pos)<10,"native perspective ray aiming still casts");
+    game.camera.firstPerson=true; game.camera.center=game.hero.pos;
+    auto eye=game.camera.view().eye;
+    check(std::abs(eye[0]-game.hero.pos.x)<.001f&&std::abs(eye[1]-game.hero.pos.y)<.001f,"first-person eye tracks the player");
+    [NSApp activateIgnoringOtherApps:YES]; [native makeKeyAndOrderFront:nil];
+    [[NSRunningApplication currentApplication] activateWithOptions:0];
+    for(int i=0;i<100&&!native.keyWindow;++i) { window.poll(true); [native makeKeyWindow]; [NSThread sleepForTimeInterval:.01]; }
+    auto locked=window.poll(false,false,true);
+
+    if(native.keyWindow) check(window.mouseCaptured()&&locked.mouseX==world.width/2&&locked.mouseY==world.height/2,"captured first-person mouse aims through center crosshair");
+    else check(!window.mouseCaptured(),"inactive game never captures the desktop mouse");
+    auto beforeLook=game.camera.lookPitch; locked.orbitX=60; locked.orbitY=-30; game.input(locked);
+    check(game.camera.lookPitch<beforeLook&&game.camera.yaw>0,"first-person mouse look changes yaw and pitch");
+    key(@"\x1b",53,true); game.input(window.poll(false,false,true)); window.poll(true,false,true);
+    check(game.screen==er::Screen::Paused&&!window.mouseCaptured(),"Esc pauses and releases first-person mouse capture");
     std::cout<<"PASS: native focus, Enter, diagonal holds, key release, pause, menu click, mouse aim/cast, Metal 3D, raw toggle and diagnostics\n";
     return 0;
 } catch(const std::exception& error) { std::cerr<<error.what()<<'\n'; return 1; } } }

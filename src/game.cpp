@@ -94,7 +94,9 @@ void Game::input(const Input& in) {
     if(camera.perspective) {
         if(in.keys.find('[')!=std::string::npos) camera.fov=std::max(35*pi/180,camera.fov-3*pi/180);
         if(in.keys.find(']')!=std::string::npos) camera.fov=std::min(80*pi/180,camera.fov+3*pi/180);
-        camera.yaw+=in.orbitX*.006f; camera.tilt=clamp(camera.tilt+in.orbitY*.004f,45*pi/180,65*pi/180); }
+        camera.yaw=std::remainder(camera.yaw+in.orbitX*(camera.firstPerson?.004f:.006f),2*pi);
+        if(camera.firstPerson) camera.lookPitch=clamp(camera.lookPitch+in.orbitY*.003f,-80*pi/180,80*pi/180);
+        else camera.tilt=clamp(camera.tilt+in.orbitY*.004f,45*pi/180,65*pi/180); }
     if(in.heldMovement) { velocity={}; movementTime=0; }
     Vec2 direction{};
     for(char k:in.keys+in.movementKeys) {
@@ -141,7 +143,9 @@ void Game::input(const Input& in) {
     if(camera.perspective) direction={direction.x*std::cos(camera.yaw)-direction.y*std::sin(camera.yaw),-direction.x*std::sin(camera.yaw)-direction.y*std::cos(camera.yaw)};
     if(length(direction)>0) { velocity=normalized(direction)*hero.speed; movementTime=.16f; }
     if(in.scroll) camera.zoom=clamp(camera.zoom+in.scroll*.1f,.55f,2.f);
-    if(in.mouseX>=0) { Vec2 hit; if(camera.pick({float(in.mouseX),float(in.mouseY)},hit)) aim=hit; }
+    if(in.mouseX>=0) { Vec2 hit; Vec2 pixel=camera.perspective&&camera.firstPerson?Vec2{camera.width*.5f,camera.height*.5f}:Vec2{float(in.mouseX),float(in.mouseY)};
+        if(camera.pick(pixel,hit)) aim=hit;
+        else if(camera.perspective&&camera.firstPerson) { auto view=camera.view(); aim=hero.pos+normalized(Vec2{view.forward[0],view.forward[1]})*30; } }
     if(in.click) casts.push_back(0);
 }
 void Game::tick(float dt) {
@@ -176,9 +180,10 @@ void Game::tick(float dt) {
     for(const auto& e:party) world.pushGrass(e.pos,2.5f,dt*25);
     for(auto& t:texts) t.life-=dt;
     texts.erase(std::remove_if(texts.begin(),texts.end(),[](const auto& t){return t.life<=0;}),texts.end());
-    camera.center=lerp(camera.center,hero.pos,1-std::exp(-dt*6));
+    camera.center=camera.perspective&&camera.firstPerson?hero.pos:lerp(camera.center,hero.pos,1-std::exp(-dt*6));
 }
 void Game::render(Framebuffer& f,float ms,Framebuffer* interface) {
+    if(camera.perspective&&camera.firstPerson) camera.center=hero.pos;
     camera.terrain=&world; // Terrain projection also keeps objects, labels and mouse aim grounded.
     if(f.width<40||f.height<16) { f.clear(); f.text(0,0,"Resize to at least 40x16"); f.text(0,2,"Q: quit"); return; }
     camera.width=f.width; camera.height=f.height;
@@ -205,8 +210,8 @@ void Game::render(Framebuffer& f,float ms,Framebuffer* interface) {
     combat.render(scene,time);
     if(!camera.perspective) world.reflections(scene,time); scene.convert(f);
     if(!world.interior&&!camera.perspective) environment.atmosphere(f,camera,world.terrainSeed,time);
-    if(hero.alive) playerAvatar(f,camera,hero,time);
-    if(showNames) { nameLabel(f,camera,hero); for(const auto& e:party) nameLabel(f,camera,e,e.id==hero.target);
+    if(hero.alive&&!(camera.perspective&&camera.firstPerson)) playerAvatar(f,camera,hero,time);
+    if(showNames) { if(!(camera.perspective&&camera.firstPerson)) nameLabel(f,camera,hero); for(const auto& e:party) nameLabel(f,camera,e,e.id==hero.target);
     for(const auto& e:mobs) nameLabel(f,camera,e,e.id==hero.target);
     for(const auto& item:loot) { Vec2 p=camera.project(item.pos); if(p.y>2&&p.y<f.height-5) f.text(int(p.x)-4,int(p.y)-1,data.items[size_t(item.item)].name,{151,139,111}); }
     if(!world.interior) nameLabel(f,camera,dragon,dragon.id==hero.target);
@@ -214,7 +219,7 @@ void Game::render(Framebuffer& f,float ms,Framebuffer* interface) {
     if(!world.interior) { atlas.labels(f,camera,hero.pos); population.labels(f,camera,hero.pos,aim); }
     if(transition>0) for(auto& cell:f.cells) cell.fg=cell.fg*(1-transition/.25f);
     floatingLabels(f,camera,texts);
-    Vec2 cursor=camera.project(aim); f.put(int(cursor.x),int(cursor.y),U'+',white);
+    Vec2 cursor=camera.perspective&&camera.firstPerson?Vec2{f.width*.5f,f.height*.5f}:camera.project(aim); f.put(int(cursor.x),int(cursor.y),U'+',white);
     if(interface) {
         // NUL cells are transparent in the native interface layer.
         for(auto& cell:interface->cells) cell={U'\0',white,background};

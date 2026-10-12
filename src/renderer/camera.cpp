@@ -11,17 +11,18 @@ float Camera::ground(Vec2 p) const {
     return terrain->elevation(base+Vec2{4,4})*(u+v-1)+b*(1-v)+c*(1-u);
 }
 View3D Camera::view() const {
-    float ct=std::cos(tilt),st=std::sin(tilt),cy=std::cos(yaw),sy=std::sin(yaw);
+    float pitch=firstPerson?lookPitch:tilt;
+    float ct=std::cos(pitch),st=std::sin(pitch),cy=std::cos(yaw),sy=std::sin(yaw);
     Vec3 forward{sy*ct,cy*ct,-st},target{center.x,center.y,ground(center)+2.5f};
-    Vec3 eye=target-forward*(64/std::max(.3f,zoom));
+    Vec3 eye=firstPerson?Vec3{center.x,center.y,ground(center)+eyeHeight}:target-forward*(64/std::max(.3f,zoom));
     return {{eye.x,eye.y,eye.z,0},{cy,-sy,0,0},{sy*st,cy*st,ct,0},{forward.x,forward.y,forward.z,0},
-        {1/std::tan(fov*.5f),float(width)/(2*height),.5f,280}};
+        {1/std::tan((firstPerson?clamp(fov/zoom,35*pi/180,95*pi/180):fov)*.5f),float(width)/(2*height),firstPerson?.08f:.5f,280}};
 }
 Vec2 Camera::project(Vec2 p,float z) const {
     if(!perspective) { float s=scale(); return {width*.5f+(p.x-center.x)*2.2f*s,height*.55f+(p.y-center.y)*.9f*s-(z+ground(p)-ground(center))*1.5f*s}; }
     auto v=view(); Vec3 d{p.x-v.eye[0],p.y-v.eye[1],ground(p)+z-v.eye[2]};
     auto component=[&](const auto& axis){return d.x*axis[0]+d.y*axis[1]+d.z*axis[2];};
-    float depth=component(v.forward); if(depth<=v.lens[2]) return {-10000,-10000};
+    float depth=component(v.forward); if(depth<=v.lens[2]||depth>=v.lens[3]) return {-10000,-10000};
     return {(1+component(v.right)*v.lens[0]/(depth*v.lens[1]))*width*.5f,(1-component(v.up)*v.lens[0]/depth)*height*.5f};
 }
 bool Camera::pick(Vec2 screen,Vec2& hit) const {

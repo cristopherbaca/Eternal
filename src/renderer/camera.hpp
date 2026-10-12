@@ -13,7 +13,8 @@ inline float dot(Vec3 a,Vec3 b) { return a.x*b.x+a.y*b.y+a.z*b.z; }
 struct View3D { std::array<float,4> eye,right,up,forward,lens; };
 struct Camera {
     const World* terrain=nullptr;
-    bool perspective=false;
+    bool perspective=false,firstPerson=false;
+    float eyeHeight=1.75f,lookPitch=8*pi/180;
     float yaw=0,tilt=55*pi/180,fov=55*pi/180;
     Vec2 center{0,12}; float zoom=1; int width=200,height=60;
     float scale() const { return zoom*std::max(.7f,height/60.f); }

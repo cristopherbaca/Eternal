@@ -64,6 +64,16 @@ int main() { try {
     check(accurate,"perspective ray casting inverts projection across orbit angles");
     camera3.yaw=0; auto nearScreen=camera3.project(camera3.center+Vec2{4,0}); camera3.zoom=1.5f;
     check(std::abs(camera3.project(camera3.center+Vec2{4,0}).x-80)>std::abs(nearScreen.x-80),"perspective zoom changes projected scale");
+    {
+        Camera eyes=camera3; eyes.firstPerson=true; eyes.lookPitch=15*pi/180; eyes.zoom=1;
+        auto first=eyes.view();
+        check(std::abs(first.eye[0]-eyes.center.x)<.001f&&std::abs(first.eye[1]-eyes.center.y)<.001f&&std::abs(first.eye[2]-eyes.ground(eyes.center)-1.75f)<.001f,"first-person eye is attached to player terrain height");
+        Vec2 hit; check(eyes.pick({80,25},hit)&&dot(hit-eyes.center,Vec2{first.forward[0],first.forward[1]})>0,"first-person crosshair ray hits terrain in front");
+        Vec2 projected=eyes.project(hit); check(distance(projected,{80,25})<.01f,"first-person crosshair uses the rendering projection");
+        eyes.yaw=pi/2; auto turned=eyes.view(); check(turned.forward[0]>.9f&&std::abs(turned.forward[1])<.001f,"first-person mouse yaw turns camera without orbiting position");
+        check(turned.eye==first.eye,"turning first-person camera leaves eye at player");
+        check(eyes.project(eyes.center+Vec2{1000,0}).x<0,"first-person clips distant glyph objects beyond the terrain far plane");
+    }
     auto eye=camera3.view().eye; check(eye[2]>camera3.ground(camera3.center),"orbit eye is above terrain target");
     Terrain3D mesh; mesh.update(world3,camera3.center); auto revision=mesh.revision; mesh.update(world3,camera3.center);
     check(mesh.chunks.size()==49&&mesh.revision==revision,"terrain mesh cache is bounded and reused without uploads");
