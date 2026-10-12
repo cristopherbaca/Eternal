@@ -55,6 +55,8 @@ public:
     NpcId talking{}; std::string dialogue; int loreIndex=0;
     void saveLiving(std::ostream& out) const; bool loadLiving(std::istream& in,int saveVersion);
     void talkNearby(); Person speaker() const; void learnLore(int index); void offerQuest(const Person& person);
+    bool escortActive() const; bool questReady(const Quest& q) const;
+    void tickQuests(float dt); void deliverQuests(NpcId recipient); void renderEscorts(Scene& scene) const;
     void socialInput(const Input& input); void renderSocial(Framebuffer& frame) const;
     int buyPrice(const Person& person,const ItemDef& item) const; void tradeWith(const Person& person,int action);
     bool socialScreen() const { return screen==Screen::Talk||screen==Screen::Trade||screen==Screen::Journal||screen==Screen::Lore; }

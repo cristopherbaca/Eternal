@@ -9,7 +9,7 @@ Constraints: preserve the existing renderer, combat, class definitions, HUD/menu
 2. **Partially complete** — enterable buildings/dungeons, bounded local simulation, day/night/weather, ambient animals.
 3. **Complete (vertical slice)** — generated NPC identities/schedules, dialogue, trade/services; structured history/books and factions.
 4. **Partially complete** — quests and a playable town → dungeon → reward loop, quest/lore log and persistent state.
-5. **Partially complete** — broader crime, skills/perks, crafting, random equipment affixes and additional quest templates. These are not implemented by the existing game.
+5. **Partially complete** — basic theft/guards, class mastery/talents and four crafting recipes are playable. Broader crime, random equipment affixes and further quest mechanics remain.
 
 ## Verification / running
 - Build: `/private/tmp/eternalrpg-build-tools/cmake/data/bin/cmake --build build -j 6`
@@ -64,3 +64,11 @@ Constraints: preserve the existing renderer, combat, class definitions, HUD/menu
 - 213 gameplay checks pass; native Metal checks cover dialogue, job acceptance and progression panel in addition to movement, focus, pause and mouse input. Terminal smoke passes input, resize, signal restoration and backpressure.
 - Native 240-frame run at a 60 FPS target measured 58.95 submissions/s, 4.52 ms mean work and 5.72 ms p95. This is submission timing, not verified display refresh.
 - Updated living-world controls and implementation limits. Next: delivery and escorted-travel jobs with persistence. Remaining usage unavailable.
+
+## Phase 4b result: delivery and escort contracts
+- Repeat work from a giver cycles dungeon recovery → letter delivery → escorted travel. Delivery targets a named resident of a real settlement; talking with Y hands over the quest letter. Escort names another resident and renders a gold traveler following on foot.
+- Escorts pause near hostile enemies or when the player gets more than 35 units ahead. The map marks their position; both player and traveler must reach the destination. One escort can be active at a time, and fast travel/building entry are disabled until arrival. The home resident is hidden while traveling.
+- Journal objectives explain the interaction and point back to the giver after completion. All contracts pay once on return. Save v6 retains quest type, contact identity and traveler position; versions 1–5 still load.
+- 228 core checks pass, including recipient identity, rewards, escort movement/threat waiting, transition guards and saved active escort. Native Metal input checks also pass.
+- Limits: escorts cannot be injured, have simple collision-aware following (guide them around obstacles), and return to their home schedule after arrival. There is no abandonment/failure UI yet. Rescue/stealth contracts, autonomous social relationships and item rarity/affixes remain unfinished.
+- Budget re-check: no usage API is available; remaining allowance unknown. Next phase: escort cancellation/recovery and richer quest outcomes, followed by equipment rarity/affixes.

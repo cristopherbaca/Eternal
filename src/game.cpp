@@ -95,7 +95,7 @@ void Game::input(const Input& in) {
     Vec2 direction{};
     for(char k:in.keys+in.movementKeys) {
         if(k=='q') quit=true;
-        if(k=='b'&&hero.alive&&!world.interior) { setScene("boss"); message="The Dragon's hollow. Dodge red telegraphs."; }
+        if(k=='b'&&hero.alive&&!world.interior&&!escortActive()) { setScene("boss"); message="The Dragon's hollow. Dodge red telegraphs."; }
         if(k=='i') { inventoryMenu=!inventoryMenu; continue; }
         if(k=='r') respawn();
         if(k=='e') collectLoot();
@@ -162,7 +162,7 @@ void Game::tick(float dt) {
     }
     hero.velocity=velocity;
     if(!world.interior) tickDragon(*this,dt);
-    tickInterior(dt); tickSociety(dt);
+    tickInterior(dt); tickSociety(dt); tickQuests(dt);
     auto es=entities(); combat.tick(dt,es,world,texts);
     for(int slot:casts) { auto error=combat.cast(hero,slot,aim,hero.target,es,data,world,texts); if(!error.empty()) message=error; else mastery[size_t(hero.role)]=std::min(100000,mastery[size_t(hero.role)]+1); }
     casts.clear();
@@ -188,7 +188,7 @@ void Game::render(Framebuffer& f,float ms,Framebuffer* interface) {
         else renderUI(f,ms);
         return;
     }
-    scene.begin(camera); world.render(scene,time); if(!world.interior) { atlas.focus(hero.pos); atlas.render(scene,time); population.render(scene,time); environment.render(scene,time); }
+    scene.begin(camera); world.render(scene,time); if(!world.interior) { atlas.focus(hero.pos); atlas.render(scene,time); population.render(scene,time); environment.render(scene,time); renderEscorts(scene); }
     for(const auto& e:party) if(e.alive) drawCharacter(scene,e.pos,e.color,time,length(e.velocity)>0,int(e.role));
     for(const auto& e:mobs) if(e.alive) {
         if(e.name=="Wolf") { scene.point(e.pos,1,{172,168,166},U'w'); scene.point(e.pos+Vec2{1,0},1.5f,{220,179,128},U'>'); }

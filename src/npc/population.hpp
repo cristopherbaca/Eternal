@@ -16,6 +16,7 @@ class Population {
 public:
     std::vector<Job> jobs; std::vector<Trait> traits;
     std::vector<Person> nearby;
+    std::set<NpcId> away; // Derived from active escort contracts, not independent save state.
     std::map<NpcId,PersonState> changes;
     explicit Population(const std::filesystem::path& data={});
     Person person(const Place& home,int index) const;

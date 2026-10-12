@@ -357,13 +357,44 @@ int main() { try {
     check(trained.loadAdventure(0)&&trained.talents==crafter.talents&&trained.materials==crafter.materials&&trained.harvested==crafter.harvested&&trained.bounties==crafter.bounties,"talents materials harvest and crime state persist");
     Game legacyFixture; legacyFixture.saveDirectory=progressionRoot; legacyFixture.activeSave=1; legacyFixture.saveAdventure();
     std::ifstream legacyIn(progressionRoot/"slot-2.sav"); std::stringstream legacyBuffer; legacyBuffer<<legacyIn.rdbuf(); std::string latestSave=legacyBuffer.str();
-    const char* sections[]={"\nATLAS", "\nINTERIORS", "\nLIVING", "\nPROGRESSION"};
-    for(int version=1;version<=4;++version) {
+    const char* sections[]={"\nATLAS", "\nINTERIORS", "\nLIVING", "\nPROGRESSION", "\nQUEST_DETAILS"};
+    for(int version=1;version<=5;++version) {
         std::string old=latestSave; old[8]=char('0'+version); old.resize(old.find(sections[version-1]));
         { std::ofstream file(progressionRoot/"slot-3.sav"); file<<old<<'\n'; }
         Game legacyReader; legacyReader.saveDirectory=progressionRoot; check(legacyReader.loadAdventure(2),"previous save format remains readable");
     }
     std::filesystem::remove_all(progressionRoot);
+    }
+    {
+    Game courier; auto giver=courier.population.person(courier.atlas.place({0,0}),1);
+    courier.quests.push_back({giver.id,{2,2},0,true,true,"previous job"});
+    courier.offerQuest(giver);
+    check(courier.quests.back().kind==QuestKind::Delivery,"second contract is a real delivery");
+    auto recipient=courier.quests.back().contact;
+    courier.deliverQuests(giver.id); check(!courier.quests.back().complete,"wrong recipient cannot complete delivery");
+    courier.deliverQuests(recipient); check(courier.quests.back().complete,"named recipient completes delivery");
+    int before=courier.hero.gold; courier.offerQuest(giver);
+    check(courier.hero.gold==before+90&&courier.quests.back().rewarded,"delivery pays only after return");
+    courier.offerQuest(giver);
+    check(courier.hero.gold==before+90&&courier.quests.back().kind==QuestKind::Escort,"next job is escort without duplicate delivery payout");
+    auto& escort=courier.quests.back(); courier.hero.pos=escort.escortPos+Vec2{6,0}; courier.mobs.clear();
+    auto start=escort.escortPos; courier.tickQuests(.1f);
+    check(distance(start,escort.escortPos)>0,"escort walks toward nearby player");
+    courier.hero.pos=escort.escortPos+Vec2{6,0}; Entity threat; threat.alive=true; threat.pos=escort.escortPos; courier.mobs.push_back(threat);
+    start=escort.escortPos; courier.tickQuests(.1f); check(distance(start,escort.escortPos)==0,"escort waits for nearby threats to be cleared"); courier.mobs.clear();
+    courier.hero.pos=courier.atlas.place({0,0}).pos; courier.interactPlace(); check(!courier.world.interior,"escort blocks interior transitions");
+    courier.hero.pos=escort.escortPos+Vec2{40,0}; start=escort.escortPos; courier.tickQuests(.1f);
+    check(distance(start,escort.escortPos)==0,"escort waits when player runs too far ahead");
+    courier.screen=Screen::Map; courier.mapSelected=PlaceId{0,0}; courier.atlas.visited.insert({0,0}); Input enter; enter.keys="\r"; courier.menuInput(enter);
+    check(courier.screen==Screen::Map&&distance(start,escort.escortPos)==0,"escort prevents fast travel");
+    auto questRoot=std::filesystem::temp_directory_path()/("er-quests-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    courier.saveDirectory=questRoot; courier.activeSave=0; check(courier.saveAdventure(),"active escort saves");
+    Game resume; resume.saveDirectory=questRoot;
+    check(resume.loadAdventure(0)&&resume.escortActive()&&distance(resume.quests.back().escortPos,escort.escortPos)<.01f&&resume.population.away.count(escort.contact),"escort restores position identity and hidden home resident");
+    escort.escortPos=courier.atlas.place(escort.target).pos; courier.hero.pos=escort.escortPos; courier.tickQuests(.1f);
+    check(escort.complete&&!courier.escortActive(),"escort completes only when both reach destination");
+    before=courier.hero.gold; courier.offerQuest(giver); check(courier.hero.gold==before+90&&escort.rewarded,"escort returns for reward");
+    std::filesystem::remove_all(questRoot);
     }
     Game travelRules; travelRules.atlas.known.insert({2,2}); travelRules.mapSelected=PlaceId{2,2}; travelRules.screen=Screen::Map;
     Input travelKey; travelKey.keys="\r"; travelRules.menuInput(travelKey);

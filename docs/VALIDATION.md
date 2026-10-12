@@ -88,3 +88,5 @@ A 180-frame live native-window boss demo at 320×100 completed in 3.217 seconds 
 The native backend reuses the existing simulation and full-color cell buffer. Terminal mode is retained. Native input now supplies held movement and immediate key release; the corresponding regression checks bring the unit suite to 76 checks. Visual smoothness, font appearance and mouse alignment still need user confirmation on the target display.
 
 Living-world integration: 213 gameplay checks pass, plus native dialogue/quest/progression input assertions and the terminal smoke suite. Native 240-frame timing at 60 FPS target: 58.95 submissions/s, work mean 4.52 ms, p95 5.72 ms (320×100). Submission rate does not measure display scanout.
+
+Delivery/escort phase: 228 core checks pass, including named recipient handoff, single rewards, escort threat/distance waiting, travel/interior restrictions, active escort persistence and save versions 1–5. Native Metal input regression passes. Escort damage, cancellation and complex pathfinding are not implemented.

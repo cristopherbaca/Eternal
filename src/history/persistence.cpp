@@ -17,6 +17,8 @@ void Game::saveLiving(std::ostream& out) const {
     auto writeMap=[&](const std::map<PlaceId,int>& values) { out<<values.size()<<'\n'; for(const auto& e:values) out<<e.first.first<<' '<<e.first.second<<' '<<e.second<<'\n'; };
     writeMap(harvested); writeMap(bounties);
     out<<eventLog.size()<<'\n'; for(const auto& entry:eventLog) out<<std::quoted(entry.substr(0,1000))<<'\n';
+    out<<"QUEST_DETAILS 1 "<<quests.size()<<'\n';
+    for(const auto& q:quests) out<<int(q.kind)<<' '<<std::get<0>(q.contact)<<' '<<std::get<1>(q.contact)<<' '<<std::get<2>(q.contact)<<' '<<q.escortPos.x<<' '<<q.escortPos.y<<'\n';
 }
 bool Game::loadLiving(std::istream& in,int saveVersion) {
     std::string magic; int version; if(!(in>>magic>>version)||magic!="LIVING"||version!=1||!population.load(in)) return false;
@@ -39,6 +41,18 @@ bool Game::loadLiving(std::istream& in,int saveVersion) {
         if(!readMap(harvested,16000)||!readMap(bounties,4000)) return false;
         if(!(in>>count)||count>5) return false; for(size_t i=0;i<count;++i) { std::string entry; if(!(in>>std::quoted(entry))||entry.size()>1000) return false; eventLog.push_back(entry); }
         if(!eventLog.empty()) lastEvent=eventLog.front();
+    }
+    if(saveVersion>=6) {
+        std::string tag; int format; size_t size;
+        if(!(in>>tag>>format>>size)||tag!="QUEST_DETAILS"||format!=1||size!=quests.size()) return false;
+        int escorts=0;
+        for(auto& q:quests) {
+            int kind,x,y,n;
+            if(!(in>>kind>>x>>y>>n>>q.escortPos.x>>q.escortPos.y)||kind<0||kind>2||n<0||n>=12||std::abs(int64_t(x))>=4000||std::abs(int64_t(y))>=4000||!std::isfinite(q.escortPos.x)||!std::isfinite(q.escortPos.y)||std::abs(q.escortPos.x)>1000000||std::abs(q.escortPos.y)>1000000) return false;
+            q.kind=QuestKind(kind); q.contact={x,y,n};
+            if(q.rewarded&&!q.complete) return false;
+            if(q.kind==QuestKind::Escort&&!q.complete) { if(++escorts>1) return false; population.away.insert(q.contact); }
+        }
     }
     atlas.focus(interiorSite?outsidePosition:hero.pos); population.tick(atlas,world,time,0,weatherAt(world.terrainSeed,time)!=0);
     return true;

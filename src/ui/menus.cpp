@@ -79,6 +79,7 @@ void Game::menuInput(const Input& input) {
             if(k=='-') mapStep=std::min(128.f,mapStep*2);
             mapCenter.x=clamp(mapCenter.x,-999000.f,999000.f); mapCenter.y=clamp(mapCenter.y,-999000.f,999000.f);
             if(k=='\t'&&!atlas.known.empty()) { auto it=mapSelected?atlas.known.upper_bound(*mapSelected):atlas.known.begin(); if(it==atlas.known.end()) it=atlas.known.begin(); mapSelected=*it; mapCenter=atlas.place(*it).pos; }
+            if(escortActive()&&(k=='\r'||k=='\n'||k=='t'||(k>='1'&&k<='5'))) { message="Finish the escort before fast travel."; return; }
             if((k=='\r'||k=='\n')&&mapSelected&&atlas.visited.count(*mapSelected)&&hero.alive&&(!fight.active||hero.testing)) {
                 hero.pos=atlas.place(*mapSelected).pos+Vec2{0,5}; camera.center=hero.pos; world.focus(hero.pos); atlas.focus(hero.pos); velocity={}; screen=Screen::Playing; return;
             }

@@ -21,8 +21,11 @@ void Game::drawMap(Framebuffer& f,int x,int y,int width,int height,Vec2 center,f
     }
     for(auto id:atlas.known) { auto p=atlas.place(id); mark(p.pos,atlas.types[size_t(p.type)].glyph,atlas.visited.count(id)?Color{250,214,128}:Color{135,201,218}); }
     if(!full) for(const auto& e:mobs) if(e.alive&&distance(e.pos,hero.pos)<38) mark(e.pos,U'!',{244,107,103});
-    for(const auto& q:quests) if(!q.rewarded) mark(atlas.place(q.target).pos,U'?',{151,220,250});
-    if(!full) for(const auto& p:population.nearby) if(distance(p.pos,hero.pos)<45) mark(p.pos,U'n',{135,211,168});
+    for(const auto& q:quests) if(!q.rewarded) mark(atlas.place(questReady(q)?PlaceId{std::get<0>(q.giver),std::get<1>(q.giver)}:q.target).pos,U'?',{151,220,250});
+    if(!full) for(const auto& p:population.nearby) if(!population.away.count(p.id)&&(!population.changes.count(p.id)||!population.changes.at(p.id).recruited)&&distance(p.pos,hero.pos)<45) mark(p.pos,U'n',{135,211,168});
+    for(const auto& q:quests) if(q.kind==QuestKind::Escort&&!q.complete) mark(q.escortPos,U'e',{255,222,139});
+    for(const auto& q:quests) if(q.kind==QuestKind::Delivery&&!q.complete)
+        for(const auto& p:population.nearby) if(p.id==q.contact) mark(p.pos,U'?',{151,220,250});
     if(mapSelected) mark(atlas.place(*mapSelected).pos,U'X',{140,232,241});
     mark(hero.pos,U'@',{246,248,255});
 }

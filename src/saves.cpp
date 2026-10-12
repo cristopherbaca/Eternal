@@ -47,7 +47,7 @@ void Game::refreshSaves() {
         if(!std::filesystem::exists(path,error)) continue;
         saves[size_t(i)].exists=true;
         std::ifstream in(path); std::string magic,name,player; int version; uint64_t seed;
-        if(in>>magic>>version>>std::quoted(name)>>seed>>std::quoted(player); in&&magic=="ETERNAL"&&(version>=1&&version<=5))
+        if(in>>magic>>version>>std::quoted(name)>>seed>>std::quoted(player); in&&magic=="ETERNAL"&&(version>=1&&version<=6))
             saves[size_t(i)].label=name+" / "+player;
         else saves[size_t(i)].label="Unreadable save (can be deleted)";
     }
@@ -83,7 +83,7 @@ bool Game::saveAdventure() {
         std::filesystem::create_directories(saveDirectory);
         auto path=slotPath(saveDirectory,activeSave),temp=path; temp+=".tmp";
         std::ofstream out(temp,std::ios::trunc); out<<std::setprecision(9);
-        out<<"ETERNAL 5 "<<std::quoted(worldName)<<' '<<world.seed<<' '<<std::quoted(hero.name)<<'\n';
+        out<<"ETERNAL 6 "<<std::quoted(worldName)<<' '<<world.seed<<' '<<std::quoted(hero.name)<<'\n';
         out<<activeMods.size()<<' '; for(const auto& mod:activeMods) out<<std::quoted(mod)<<' '; out<<'\n';
         out<<data.items.size()<<' '; for(const auto& item:data.items) out<<std::quoted(item.name)<<' '; out<<'\n';
         const auto& gen=world.config;
@@ -114,7 +114,7 @@ bool Game::loadAdventure(int slot) {
     try {
         std::ifstream in(slotPath(saveDirectory,slot)); std::string magic,title,name; int version; uint64_t seed;
         auto require=[&](bool condition) { if(!condition) throw std::runtime_error("Invalid or incompatible save"); };
-        require(bool(in>>magic>>version>>std::quoted(title)>>seed>>std::quoted(name))&&magic=="ETERNAL"&&(version>=1&&version<=5)&&seed<1000000000000ULL&&title.size()<=24);
+        require(bool(in>>magic>>version>>std::quoted(title)>>seed>>std::quoted(name))&&magic=="ETERNAL"&&(version>=1&&version<=6)&&seed<1000000000000ULL&&title.size()<=24);
         size_t count; require(bool(in>>count)&&count==activeMods.size());
         for(const auto& mod:activeMods) { std::string stored; require(bool(in>>std::quoted(stored))&&stored==mod); }
         require(bool(in>>count)&&count==data.items.size());

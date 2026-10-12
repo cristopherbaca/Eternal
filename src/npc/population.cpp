@@ -42,7 +42,7 @@ void Population::tick(const Atlas& atlas,const World& world,float time,float dt,
 }
 void Population::render(Scene& scene,float time) const {
     for(const auto& p:nearby) {
-        auto found=changes.find(p.id); if(found!=changes.end()&&found->second.recruited) continue;
+        auto found=changes.find(p.id); if(away.count(p.id)||(found!=changes.end()&&found->second.recruited)) continue;
         Vec2 screen=scene.camera.project(p.pos); if(screen.x<0||screen.y<0||screen.x>scene.camera.width||screen.y>scene.camera.height) continue;
         Color color=p.job==2?Color{140,181,225}:p.job==1?Color{228,159,109}:Color{151,213,181};
         scene.point(p.pos,3,color,U'o',{},.4f); scene.point(p.pos,2,color,jobs[size_t(p.job)].glyph,{},.4f);
@@ -51,8 +51,8 @@ void Population::render(Scene& scene,float time) const {
 }
 void Population::labels(Framebuffer& f,const Camera& camera,Vec2 hero,Vec2 aim) const {
     const Person* nearest=nullptr;
-    for(const auto& p:nearby) if((!changes.count(p.id)||!changes.at(p.id).recruited)&&distance(p.pos,hero)<10&&(!nearest||distance(p.pos,hero)<distance(nearest->pos,hero))) nearest=&p;
-    for(const auto& p:nearby) if((!changes.count(p.id)||!changes.at(p.id).recruited)&&(&p==nearest||distance(p.pos,aim)<1.2f)) {
+    for(const auto& p:nearby) if(!away.count(p.id)&&(!changes.count(p.id)||!changes.at(p.id).recruited)&&distance(p.pos,hero)<10&&(!nearest||distance(p.pos,hero)<distance(nearest->pos,hero))) nearest=&p;
+    for(const auto& p:nearby) if(!away.count(p.id)&&(!changes.count(p.id)||!changes.at(p.id).recruited)&&(&p==nearest||distance(p.pos,aim)<1.2f)) {
         Vec2 screen=camera.project(p.pos,5); std::string label=p.name+" / "+jobs[size_t(p.job)].name;
         f.text(int(screen.x)-int(label.size()/2),int(screen.y),label,{164,217,189});
     }

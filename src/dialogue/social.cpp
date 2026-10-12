@@ -6,10 +6,11 @@ namespace er {
 void Game::talkNearby() {
     if(world.interior||!hero.alive) return;
     const Person* nearest=nullptr;
-    for(const auto& p:population.nearby) if((!population.changes.count(p.id)||!population.changes.at(p.id).recruited)&&distance(p.pos,hero.pos)<8&&(!nearest||distance(p.pos,hero.pos)<distance(nearest->pos,hero.pos))) nearest=&p;
+    for(const auto& p:population.nearby) if(!population.away.count(p.id)&&(!population.changes.count(p.id)||!population.changes.at(p.id).recruited)&&distance(p.pos,hero.pos)<8&&(!nearest||distance(p.pos,hero.pos)<distance(nearest->pos,hero.pos))) nearest=&p;
     if(!nearest) { message="Approach a person and press Y to talk."; return; }
     talking=nearest->id; screen=Screen::Talk; menuIndex=0; velocity={}; casts.clear();
     dialogue=population.traits[size_t(nearest->trait)].greeting;
+    deliverQuests(talking);
 }
 Person Game::speaker() const { return population.person(atlas.place({std::get<0>(talking),std::get<1>(talking)}),std::get<2>(talking)); }
 void Game::learnLore(int index) {
@@ -18,26 +19,39 @@ void Game::learnLore(int index) {
 }
 void Game::offerQuest(const Person& person) {
     for(auto& q:quests) if(q.giver==person.id&&!q.rewarded) {
-        if(clearedPlaces.count(q.target)) { q.complete=true; q.rewarded=true; hero.gold+=90; awardXP(150); ++reputation[population.jobs[size_t(person.job)].faction]; dialogue="You brought the heirloom back. Take 90 gold and my thanks!"; }
-        else { dialogue="Our agreement stands: "+q.title+". Clear its guardians and open the chest."; mapSelected=q.target; }
+        if(questReady(q)) { q.complete=true; q.rewarded=true; hero.gold+=90; awardXP(150); ++reputation[population.jobs[size_t(person.job)].faction]; dialogue="The job is complete. Take 90 gold and my thanks!"; }
+        else { dialogue="Our agreement stands: "+q.title+". "+(q.kind==QuestKind::Dungeon?"Clear its guardians and open the chest.":q.kind==QuestKind::Delivery?"Talk to the named recipient with Y.":"Stay near your traveler and reach the destination together."); mapSelected=q.target; }
         return;
     }
     int serial=0; for(const auto& q:quests) if(q.giver==person.id) ++serial;
+    QuestKind kind=QuestKind(serial%3);
+    if(kind==QuestKind::Escort&&escortActive()) { dialogue="Finish your current escort before accepting another."; return; }
+    NpcId traveler={person.home.first,person.home.second,(std::get<2>(person.id)+1)%12};
+    if(kind==QuestKind::Escort&&population.changes[traveler].recruited) { dialogue="The traveler is already in your party."; return; }
     Place target=atlas.place(person.home); bool found=false;
     // Deterministic, expanding search chooses a real, uncleared location.
     for(int radius=1;radius<=8&&!found;++radius) for(int y=-radius;y<=radius&&!found;++y) for(int x=-radius;x<=radius;++x) {
         if(std::abs(x)!=radius&&std::abs(y)!=radius) continue;
         target=atlas.place({person.home.first+x,person.home.second+y}); const auto& type=atlas.types[size_t(target.type)];
         bool reserved=std::any_of(quests.begin(),quests.end(),[&](const Quest& q){return !q.rewarded&&q.target==target.id;});
-        if(type.interior&&!type.inhabited&&!clearedPlaces.count(target.id)&&!reserved) { found=true; break; }
+        if((kind==QuestKind::Dungeon?(type.interior&&!type.inhabited&&!clearedPlaces.count(target.id)):type.inhabited)&&!reserved) { found=true; break; }
     }
     if(!found||quests.size()>=1000) { dialogue="No new work today. Explore farther afield."; return; }
     std::string title="Recover the lost heirloom from "+target.name;
     auto path=sourceData/"quest_templates.txt"; if(!std::filesystem::exists(path)) path=std::filesystem::path(ER_DATA_DIR)/"quest_templates.txt";
     std::ifstream in(path); std::vector<std::string> templates; std::string line; while(in>>std::quoted(line)) templates.push_back(line);
     if(!templates.empty()) { title=templates[(person.key+uint32_t(serial))%templates.size()]; auto at=title.find("{place}"); if(at!=std::string::npos) title.replace(at,7,target.name); }
-    quests.push_back({person.id,target.id,serial,false,false,title}); atlas.known.insert(target.id); mapSelected=target.id;
-    dialogue=title+". Clear the guardians, open the chest, then return to me. Reward: 90 gold, 150 XP.";
+    NpcId contact=kind==QuestKind::Escort?traveler:NpcId{target.id.first,target.id.second,int(person.key%12)};
+    if(kind==QuestKind::Delivery) {
+        int attempts=0;
+        while(population.changes.count(contact)&&population.changes.at(contact).recruited&&attempts++<12) std::get<2>(contact)=(std::get<2>(contact)+1)%12;
+        if(attempts>=12) { dialogue="No recipient is available here today."; return; }
+    }
+    if(kind==QuestKind::Delivery) title="Deliver a sealed letter to "+population.person(target,std::get<2>(contact)).name+" at "+target.name;
+    if(kind==QuestKind::Escort) title="Escort "+population.person(atlas.place(person.home),std::get<2>(contact)).name+" to "+target.name;
+    quests.push_back({person.id,target.id,serial,false,false,title,kind,contact,hero.pos});
+    if(kind==QuestKind::Escort) population.away.insert(contact); atlas.known.insert(target.id); mapSelected=target.id;
+    dialogue=title+". "+(kind==QuestKind::Dungeon?"Clear the guardians and open the chest.":kind==QuestKind::Delivery?"Talk to the recipient (Y); the sealed letter is carried automatically.":"Walk together; the traveler waits if you get too far away or enemies approach.")+" Return to me for 90 gold and 150 XP.";
 }
 void Game::socialInput(const Input& input) {
     std::string keys=input.keys;
@@ -53,7 +67,7 @@ void Game::socialInput(const Input& input) {
         if(k=='w'||k=='^') menuIndex=(menuIndex+count-1)%count;
         if(k=='s'||k=='v') menuIndex=(menuIndex+1)%count;
         if(k!='\r'&&k!='\n'&&k!=' ') continue;
-        if(screen==Screen::Journal) { if(menuIndex<int(quests.size())) { if(world.interior) { dialogue="Leave the building before opening the world atlas."; return; } mapSelected=quests[size_t(menuIndex)].target; mapCenter=atlas.place(*mapSelected).pos; screen=Screen::Map; returnScreen=Screen::Playing; } else { screen=Screen::Lore; menuIndex=0; } return; }
+        if(screen==Screen::Journal) { if(menuIndex<int(quests.size())) { if(world.interior) { dialogue="Leave the building before opening the world atlas."; return; } const auto& q=quests[size_t(menuIndex)]; mapSelected=questReady(q)?PlaceId{std::get<0>(q.giver),std::get<1>(q.giver)}:q.target; mapCenter=atlas.place(*mapSelected).pos; screen=Screen::Map; returnScreen=Screen::Playing; } else { screen=Screen::Lore; menuIndex=0; } return; }
         if(screen==Screen::Lore) { if(chronicle.learned.count(menuIndex)) dialogue=chronicle.account(menuIndex); else dialogue="Find books, inscriptions or ask townspeople about this chapter."; return; }
         Person p=speaker(); const auto& job=population.jobs[size_t(p.job)]; const auto& trait=population.traits[size_t(p.trait)];
         if(screen==Screen::Trade) { if(menuIndex==5) { screen=Screen::Talk; menuIndex=0; } else tradeWith(p,menuIndex); return; }
@@ -93,14 +107,20 @@ void Game::renderSocial(Framebuffer& f) const {
         option(4,"Smith/alchemist service: restore HP/MP (15g)"); option(5,"Back");
     } else if(screen==Screen::Journal) {
         line(2,"QUEST JOURNAL",{225,200,145});
-        for(size_t i=0;i<quests.size();++i) { const auto& q=quests[i]; option(int(i),(q.rewarded?"[DONE] ":clearedPlaces.count(q.target)?"[RETURN] ":"[ACTIVE] ")+q.title); }
+        for(size_t i=0;i<quests.size();++i) { const auto& q=quests[i]; option(int(i),(q.rewarded?"[DONE] ":questReady(q)?"[RETURN] ":"[ACTIVE] ")+q.title); }
         option(int(quests.size()),"Read learned lore (L)");
         line(h-9,!chronicle.learned.count(3)?"Main story: ask a Scholar about the Dragon Age.":!clearedPlaces.count(chronicle.events[3].place)?"Main story: recover the relic at "+atlas.place(chronicle.events[3].place).name: fight.won?"Main story: the Dragon is defeated.":"Main story: the relic points to Dragon Hollow. M, then 5.",{220,200,150});
     } else {
         line(2,"LORE / WORLD CHRONICLE",{225,200,145});
         for(size_t i=0;i<chronicle.events.size();++i) option(int(i),chronicle.learned.count(int(i))?"Year "+std::to_string(chronicle.events[i].year)+" / "+atlas.place(chronicle.events[i].place).name:"[Undiscovered chapter]");
     }
-    size_t offset=0; for(int row=h-8;row<h-2&&offset<dialogue.size();++row) { size_t length=std::min(size_t(w-4),dialogue.size()-offset); if(offset+length<dialogue.size()) { auto space=dialogue.rfind(' ',offset+length); if(space!=std::string::npos&&space>offset) length=space-offset; } line(row,dialogue.substr(offset,length),{160,194,204}); offset+=length; while(offset<dialogue.size()&&dialogue[offset]==' ') ++offset; }
+    std::string description=dialogue;
+    if(screen==Screen::Journal&&menuIndex<int(quests.size())) {
+        const auto& q=quests[size_t(menuIndex)];
+        auto giver=population.person(atlas.place({std::get<0>(q.giver),std::get<1>(q.giver)}),std::get<2>(q.giver));
+        description=q.title+". "+(q.rewarded?"Reward collected.":questReady(q)?"Return to "+giver.name+" at "+atlas.place(giver.home).name:q.kind==QuestKind::Dungeon?"Defeat the guardians and open the chest (F).":q.kind==QuestKind::Delivery?"Speak to the named recipient (Y). Look for ? on the minimap.":"Follow the gold e on the map. Stay within 35m; clear nearby enemies. Both must reach the town. Travel and interiors are locked during escort.");
+    }
+    size_t offset=0; for(int row=h-8;row<h-2&&offset<description.size();++row) { size_t length=std::min(size_t(w-4),description.size()-offset); if(offset+length<description.size()) { auto space=description.rfind(' ',offset+length); if(space!=std::string::npos&&space>offset) length=space-offset; } line(row,description.substr(offset,length),{160,194,204}); offset+=length; while(offset<description.size()&&description[offset]==' ') ++offset; }
     line(h-2,"W/S choose | Enter/click select | Esc close",muted);
 }
 }
