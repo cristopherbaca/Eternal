@@ -37,7 +37,7 @@ std::vector<Place> Atlas::discover(Vec2 p) {
     focus(p); auto f=fogTile(p);
     for(int y=-1;y<=1;++y) for(int x=-1;x<=1;++x) explored.insert({f.first+x,f.second+y});
     std::vector<Place> found;
-    for(const auto& site:nearby) if(distance(p,site.pos)<60&&known.insert(site.id).second) found.push_back(site);
+    for(const auto& site:nearby) if(distance(p,site.pos)<60&&visited.insert(site.id).second) { known.insert(site.id); found.push_back(site); }
     return found;
 }
 void Atlas::render(Scene& s,float time) const {
@@ -45,9 +45,34 @@ void Atlas::render(Scene& s,float time) const {
         Vec2 projected=s.camera.project(site.pos,5);
         if(projected.x<-60||projected.y<-60||projected.x>s.camera.width+60||projected.y>s.camera.height+60) continue;
         const auto& type=types[size_t(site.type)];
+        if(!type.inhabited) {
+            // Different landmarks share scene primitives, not the house silhouette.
+            if(type.glyph=='+'||type.glyph=='*') {
+                for(float dx:{-3.f,0.f,3.f}) for(float z=0;z<5;z+=.5f) s.point(site.pos+Vec2{dx,0},z,{150,179,183},z>4?U'*':U'|');
+            } else if(type.glyph=='$') {
+                for(float dx=-2;dx<=2;dx+=.5f) for(float z=0;z<2;z+=.5f) s.point(site.pos+Vec2{dx,0},z,{225,181,101},U'=');
+            } else if(type.glyph=='W') {
+                for(float dx=-7;dx<=7;dx+=.5f) s.point(site.pos+Vec2{dx,0},std::abs(dx)*.4f,{139,112,90},U'\\');
+                for(float z=0;z<10;z+=.5f) s.point(site.pos,z,{170,158,125},U'|');
+            } else if(type.glyph=='A') {
+                for(float dx=-3;dx<=3;dx+=.5f) for(float z=0;z<13;z+=.5f) if(std::abs(dx)>1||int(z)%4!=2) s.point(site.pos+Vec2{dx,0},z,{145,151,168},U'#');
+            } else {
+                int height=type.glyph=='B'?8:5;
+                for(float dx=-5;dx<=5;dx+=.5f) for(float z=0;z<height;z+=.5f) {
+                    if(std::abs(dx)<2&&z<height-2) continue;
+                    if(type.glyph=='R'&&int(dx+z+20)%4==0) continue;
+                    s.point(site.pos+Vec2{dx,0},z,type.glyph=='!'?Color{188,137,100}:Color{122,138,154},type.glyph=='!'?U'/':U'#');
+                }
+            }
+            s.point(site.pos,1,{239,196,123},U'>',{},1);
+            s.point(site.pos,9,{231,177,118},type.glyph,{},1);
+            s.lights.push_back({site.pos+Vec2{2,1},2,{231,160,93},10,.8f});
+            continue;
+        }
         int houses=type.inhabited?(site.type==2?5:3):1;
         for(int house=0;house<houses;++house) {
-            Vec2 p=site.pos+Vec2{(house-1)*9.f,house==1?-8.f:0.f};
+            const Vec2 offsets[]={{0,0},{-9,-8},{9,-8},{-16,4},{16,4}};
+            Vec2 p=site.pos+offsets[house];
             if(!type.inhabited) p=site.pos;
             for(float x=-3;x<=3;x+=.5f) for(float z=0;z<6;z+=.5f) {
                 if(std::abs(x)<1&&z<3) continue;
@@ -61,15 +86,19 @@ void Atlas::render(Scene& s,float time) const {
     }
 }
 void Atlas::labels(Framebuffer& f,const Camera& c,Vec2 player) const {
-    for(const auto& site:nearby) if(distance(site.pos,player)<65) { Vec2 p=c.project(site.pos,9); f.text(int(p.x)-int(site.name.size()/2),int(p.y),site.name,{226,199,131}); if(distance(site.pos,player)<7) f.text(int(p.x)-8,int(p.y)+1,"F: enter / inspect",{174,205,219}); }
+    for(const auto& site:nearby) if(distance(site.pos,player)<65) { Vec2 p=c.project(site.pos,9); f.text(int(p.x)-int(site.name.size()/2),int(p.y),site.name,{226,199,131}); if(distance(site.pos,player)<(types[size_t(site.type)].inhabited?22:7)) f.text(int(p.x)-8,int(p.y)+1,"F: enter / inspect",{174,205,219}); }
 }
 void Atlas::save(std::ostream& out) const {
-    out<<"ATLAS 1\n"<<known.size()<<'\n'; for(auto id:known) out<<id.first<<' '<<id.second<<'\n';
+    out<<"ATLAS 2\n"<<known.size()<<'\n'; for(auto id:known) out<<id.first<<' '<<id.second<<'\n';
     out<<explored.size()<<'\n'; for(auto id:explored) out<<id.first<<' '<<id.second<<'\n';
+    out<<visited.size()<<'\n'; for(auto id:visited) out<<id.first<<' '<<id.second<<'\n';
 }
 bool Atlas::load(std::istream& in) {
-    std::string magic; int version; if(!(in>>magic>>version)||magic!="ATLAS"||version!=1) return false;
+    std::string magic; int version; if(!(in>>magic>>version)||magic!="ATLAS"||(version!=1&&version!=2)) return false;
     auto read=[&](std::set<PlaceId>& values,int bound) { size_t count; if(!(in>>count)||count>1000000) return false; for(size_t i=0;i<count;++i) { int x,y; if(!(in>>x>>y)||std::abs(int64_t(x))>bound||std::abs(int64_t(y))>bound) return false; values.insert({x,y}); } return true; };
-    return read(known,4000)&&read(explored,32000);
+    if(!read(known,4000)||!read(explored,32000)) return false;
+    if(version==1) visited=known; else if(!read(visited,4000)) return false;
+    for(auto id:visited) if(!known.count(id)) return false;
+    return true;
 }
 }

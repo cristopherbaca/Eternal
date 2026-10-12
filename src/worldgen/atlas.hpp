@@ -18,7 +18,7 @@ public:
     std::vector<PlaceType> types;
     std::vector<std::string> prefixes;
     std::vector<Place> nearby;
-    std::set<PlaceId> known,explored;
+    std::set<PlaceId> known,explored,visited;
     explicit Atlas(uint32_t seed,const std::filesystem::path& data={});
     Place place(PlaceId id) const;
     static PlaceId tile(Vec2 p) { return {int(std::floor(p.x/256)),int(std::floor(p.y/256))}; }

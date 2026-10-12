@@ -79,7 +79,7 @@ void Game::menuInput(const Input& input) {
             if(k=='-') mapStep=std::min(128.f,mapStep*2);
             mapCenter.x=clamp(mapCenter.x,-999000.f,999000.f); mapCenter.y=clamp(mapCenter.y,-999000.f,999000.f);
             if(k=='\t'&&!atlas.known.empty()) { auto it=mapSelected?atlas.known.upper_bound(*mapSelected):atlas.known.begin(); if(it==atlas.known.end()) it=atlas.known.begin(); mapSelected=*it; mapCenter=atlas.place(*it).pos; }
-            if((k=='\r'||k=='\n')&&mapSelected&&atlas.known.count(*mapSelected)&&hero.alive&&(!fight.active||hero.testing)) {
+            if((k=='\r'||k=='\n')&&mapSelected&&atlas.visited.count(*mapSelected)&&hero.alive&&(!fight.active||hero.testing)) {
                 hero.pos=atlas.place(*mapSelected).pos+Vec2{0,5}; camera.center=hero.pos; world.focus(hero.pos); atlas.focus(hero.pos); velocity={}; screen=Screen::Playing; return;
             }
             if(k==27||k=='m'||k=='p') { screen=returnScreen; menuIndex=0; return; }
@@ -254,7 +254,7 @@ void Game::renderMenu(Framebuffer& frame) {
     } else if(screen==Screen::Map) {
         line(2,"WORLD ATLAS / "+seedText(),{242,210,139});
         drawMap(frame,x+2,y+4,width-4,std::max(1,height-12),mapCenter,mapStep,true);
-        line(height-7,mapSelected?atlas.place(*mapSelected).name+" / Enter: travel":"Tab: select discovered place / Enter: fast travel",{221,199,145});
+        line(height-7,mapSelected?atlas.place(*mapSelected).name+(atlas.visited.count(*mapSelected)?" / Enter: travel":" / Visit on foot first"):"Tab: select discovered place / Enter: fast travel",{221,199,145});
         line(height-6,"WASD/arrows pan | +/- zoom | C center | blank = unexplored",muted);
         line(height-5,"@ you V village T town C capital D crypt O cave ! camp",muted);
         line(height-4,"Discovered "+std::to_string(atlas.known.size())+" places | God mode reveals terrain",muted);

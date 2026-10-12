@@ -25,7 +25,7 @@ void Game::interactPlace() {
     if(!hero.testing&&(fight.active||hero.hurtTime>0)) { message="Cannot enter while fighting."; return; }
     atlas.focus(hero.pos);
     const Place* nearest=nullptr;
-    for(const auto& place:atlas.nearby) if(distance(place.pos,hero.pos)<7&&(!nearest||distance(place.pos,hero.pos)<distance(nearest->pos,hero.pos))) nearest=&place;
+    for(const auto& place:atlas.nearby) if(distance(place.pos,hero.pos)<(atlas.types[size_t(place.type)].inhabited?22:7)&&(!nearest||distance(place.pos,hero.pos)<distance(nearest->pos,hero.pos))) nearest=&place;
     if(!nearest) { message="Approach a landmark's banner/door and press F."; return; }
     if(!atlas.types[size_t(nearest->type)].interior) { message=nearest->name+": "+atlas.types[size_t(nearest->type)].purpose; return; }
     Place site=*nearest;

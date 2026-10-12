@@ -56,6 +56,25 @@ int main() { @autoreleasepool { try {
     key(@"w",13,true); window.poll(); [native resignKeyWindow];
     check(window.poll().movementKeys.empty(),"losing focus clears held movement");
     [native makeKeyWindow];
+    game.atlas.focus(game.hero.pos); game.population.tick(game.atlas,game.world,game.time,0,false);
+    check(!game.population.nearby.empty(),"native scene has residents");
+    game.hero.pos=game.population.nearby.front().pos; game.camera.center=game.hero.pos; game.tick(1.f/60);
+    auto capture=[&](const char* variable) {
+        if(const char* path=std::getenv(variable)) {
+            while(!window.ready()) [NSThread sleepForTimeInterval:.001];
+            setenv("ER_CAPTURE",path,1); game.render(world,16,&ui); window.present(world,ui);
+        }
+    };
+    capture("ER_LIVING_CAPTURE");
+    key(@"y",16,true); game.input(window.poll());
+    check(game.screen==er::Screen::Talk,"native Y opens resident dialogue");
+    game.menuIndex=3; key(@"\r",36,true); game.input(window.poll(true));
+    check(!game.quests.empty(),"native dialogue accepts a generated quest");
+    capture("ER_TALK_CAPTURE");
+    key(@"\x1b",53,true); game.input(window.poll(true));
+    key(@"u",32,true); game.input(window.poll());
+    check(game.screen==er::Screen::Progress,"native U opens mastery and crafting");
+    capture("ER_PROGRESS_CAPTURE");
     std::cout<<"PASS: native focus, Enter, diagonal holds, key release, pause, menu click, mouse aim and cast\n";
     return 0;
 } catch(const std::exception& error) { std::cerr<<error.what()<<'\n'; return 1; } } }

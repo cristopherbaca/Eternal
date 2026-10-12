@@ -6,7 +6,7 @@ namespace er {
 void Game::talkNearby() {
     if(world.interior||!hero.alive) return;
     const Person* nearest=nullptr;
-    for(const auto& p:population.nearby) if(distance(p.pos,hero.pos)<8&&(!nearest||distance(p.pos,hero.pos)<distance(nearest->pos,hero.pos))) nearest=&p;
+    for(const auto& p:population.nearby) if((!population.changes.count(p.id)||!population.changes.at(p.id).recruited)&&distance(p.pos,hero.pos)<8&&(!nearest||distance(p.pos,hero.pos)<distance(nearest->pos,hero.pos))) nearest=&p;
     if(!nearest) { message="Approach a person and press Y to talk."; return; }
     talking=nearest->id; screen=Screen::Talk; menuIndex=0; velocity={}; casts.clear();
     dialogue=population.traits[size_t(nearest->trait)].greeting;

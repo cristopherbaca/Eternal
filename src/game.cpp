@@ -234,7 +234,7 @@ void Game::renderUI(Framebuffer& f,float ms) {
         if(f.width>90) f.text(2+i*slotWidth,f.height-3,std::to_string(int(a.cost))+" MP",muted);
     }
     f.text(2,f.height-2,message.substr(0,size_t(std::max(0,f.width-4))),muted);
-    if(showHelp) f.text(2,f.height-1,"WASD move  F enter  Y talk  J quests  L lore  1-6 cast  M map  Esc pause",{165,188,202});
+    if(showHelp) f.text(2,f.height-1,"WASD move  F enter  Y talk  J quests  L lore  U skills  G gather  M map  Esc pause",{165,188,202});
     f.text(2,f.height-5,(interiorSite?atlas.place(*interiorSite).name:std::string(world.region(hero.pos)))+" | Lv "+std::to_string(hero.level)+" XP "+std::to_string(hero.xp)+"/"+std::to_string(100+hero.level*25)+(hero.testing?" | TEST POWER ON":""),{196,190,144});
     if(classMenu||helpMenu) {
         int w=std::min(66,f.width-4),x=(f.width-w)/2,y=std::max(2,f.height/2-7); box(f,x,y,w,14);

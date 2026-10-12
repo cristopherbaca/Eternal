@@ -19,7 +19,7 @@ void Game::drawMap(Framebuffer& f,int x,int y,int width,int height,Vec2 center,f
         auto a=Atlas::tile(center-Vec2{width*step/2,height*step}),b=Atlas::tile(center+Vec2{width*step/2,height*step});
         for(int yy=a.second;yy<=b.second;++yy) for(int xx=a.first;xx<=b.first;++xx) { auto p=atlas.place({xx,yy}); mark(p.pos,atlas.types[size_t(p.type)].glyph,{200,152,91}); }
     }
-    for(auto id:atlas.known) { auto p=atlas.place(id); mark(p.pos,atlas.types[size_t(p.type)].glyph,{250,214,128}); }
+    for(auto id:atlas.known) { auto p=atlas.place(id); mark(p.pos,atlas.types[size_t(p.type)].glyph,atlas.visited.count(id)?Color{250,214,128}:Color{135,201,218}); }
     if(!full) for(const auto& e:mobs) if(e.alive&&distance(e.pos,hero.pos)<38) mark(e.pos,U'!',{244,107,103});
     for(const auto& q:quests) if(!q.rewarded) mark(atlas.place(q.target).pos,U'?',{151,220,250});
     if(!full) for(const auto& p:population.nearby) if(distance(p.pos,hero.pos)<45) mark(p.pos,U'n',{135,211,168});

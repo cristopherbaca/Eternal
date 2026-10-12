@@ -50,6 +50,7 @@ int main(int argc,char** argv) {
                     "--window (macOS Metal ASCII window)\n"
                     "--seed N  --name NAME  --fps 60  --data DIR  --demo\n"
                     "--mod ID --mods-dir DIR --no-mods --list-mods --position X Y\n"
+                    "--world-report lists generated sites, residents and history for the seed\n"
                     "--normal disables powerful testing mode\n"
                     "--headless --frames N --width 200 --height 60 --dump frame.json --stats metrics.json\n"
                     "--benchmark implies --headless; headless defaults to 600 deterministic ticks.\n";

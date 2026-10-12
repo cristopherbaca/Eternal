@@ -365,5 +365,10 @@ int main() { try {
     }
     std::filesystem::remove_all(progressionRoot);
     }
+    Game travelRules; travelRules.atlas.known.insert({2,2}); travelRules.mapSelected=PlaceId{2,2}; travelRules.screen=Screen::Map;
+    Input travelKey; travelKey.keys="\r"; travelRules.menuInput(travelKey);
+    check(travelRules.screen==Screen::Map,"rumors mark places without unlocking unvisited fast travel");
+    travelRules.atlas.discover(travelRules.atlas.place({2,2}).pos); travelRules.menuInput(travelKey);
+    check(travelRules.screen==Screen::Playing,"visiting a place unlocks fast travel");
     std::cout<<checks<<" checks passed: math, renderer, input, combat, AI, progression, boss, menus and deterministic replay\n";
 } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; } }

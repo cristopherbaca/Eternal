@@ -58,3 +58,9 @@ Constraints: preserve the existing renderer, combat, class definitions, HUD/menu
 - Save v5 persists talents, practice, materials, harvested areas, bounties and the event feed. Prior save versions are migration-tested.
 - Limits: these are basic systems, not full Skyrim subsystems. Talents are three tracks per class, recipes are four explicit recipes, enchanting creates a charm, and crime currently covers theft rather than arbitrary assault/property ownership. Random rarity/affixes, autonomous social relationships, and escort/rescue/stealth quest mechanics remain unimplemented. No claim is made that the whole attached design is complete.
 - Budget re-check: remaining usage is still not exposed. Next: final end-to-end, native layout, performance and documentation checks; no new large subsystem will start before those pass.
+
+## Integration result
+- Fixed rumor-only fast travel, settlement door reach and recruited-NPC interaction labels. Added distinct POI silhouettes while retaining existing rendering.
+- 213 gameplay checks pass; native Metal checks cover dialogue, job acceptance and progression panel in addition to movement, focus, pause and mouse input. Terminal smoke passes input, resize, signal restoration and backpressure.
+- Native 240-frame run at a 60 FPS target measured 58.95 submissions/s, 4.52 ms mean work and 5.72 ms p95. This is submission timing, not verified display refresh.
+- Updated living-world controls and implementation limits. Next: delivery and escorted-travel jobs with persistence. Remaining usage unavailable.
