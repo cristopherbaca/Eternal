@@ -79,3 +79,10 @@ Scope: terrain generation, projection, movement slope response and biome present
 1. Height/shape: warped multi-octave elevation, ridges/valleys/plateaus/basins, cached chunks, slope lighting/cliffs, consistent height projection and slope-aware movement. Build, tests, performance, commit.
 2. Biomes: height/moisture/temperature blend, eight landscapes, vegetation/rocks/plants/ambient particles and readable water. Build, tests, visual/performance checks, commit.
 Reference videos from earlier messages are absent from their supplied Downloads paths; ffmpeg is unavailable. Existing repository screenshots are available for visual comparison.
+
+## Terrain Step 1: height and shape
+- Added seed-derived warped four-octave hills, continental basins, ridged mountain ranges and continuous plateau shelves. A global 4-unit lattice provides seamless bilinear heights and slope normals; 49 lazily streamed chunks bound the working set.
+- Camera projects world objects and mouse positions through a small height displacement. Terrain uses fixed directional slope lighting, ridge/valley brightness and rock/cliff glyph transitions. Existing landmarks/ruins retain accessible approaches; roads and settlement clearings are exempt from cliff collision.
+- Movement slows uphill, handles gentle descents and collision-tests long steps so cliffs cannot be skipped. No combat, class, HUD/menu, NPC or quest source logic changed. One render integration line grounds the existing camera.
+- 234 checks pass (six new terrain checks). Optimized 320×100 frontier benchmark: 8.24 ms mean, 8.65 ms p95, versus 14.59 ms mean before removing repeated projection/cache lookups. Inspected native Metal capture.
+- Budget remaining: unavailable. Next: blended climate biomes, vegetation/rocks, water readability and biome particles.

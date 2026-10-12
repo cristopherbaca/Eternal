@@ -2,11 +2,19 @@
 #include "renderer/framebuffer.hpp"
 #include <limits>
 namespace er {
+class World;
 struct Camera {
+    const World* terrain=nullptr;
+    float ground(Vec2 p) const;
     Vec2 center{0,12}; float zoom=1; int width=200,height=60;
     float scale() const { return zoom*std::max(.7f,height/60.f); }
-    Vec2 project(Vec2 p,float z=0) const { float zf=scale(); return {width*.5f+(p.x-center.x)*2.2f*zf,height*.55f+(p.y-center.y)*.9f*zf-z*1.5f*zf}; }
-    Vec2 unproject(Vec2 s) const { float zf=scale(); return {center.x+(s.x-width*.5f)/(2.2f*zf),center.y+(s.y-height*.55f)/(.9f*zf)}; }
+    Vec2 project(Vec2 p,float z=0) const { float zf=scale(); return {width*.5f+(p.x-center.x)*2.2f*zf,height*.55f+(p.y-center.y)*.9f*zf-(z+ground(p)-ground(center))*1.5f*zf}; }
+    Vec2 unproject(Vec2 s) const {
+        float zf=scale(); Vec2 p{center.x+(s.x-width*.5f)/(2.2f*zf),center.y+(s.y-height*.55f)/(.9f*zf)};
+        float base=p.y,origin=ground(center);
+        if(terrain) for(int i=0;i<3;++i) p.y=base+(ground(p)-origin)*1.5f/.9f;
+        return p;
+    }
 };
 struct Normal { float x=0,y=0,z=1; };
 struct Pixel {

@@ -22,6 +22,11 @@ public:
     explicit World(uint64_t seed=42,GenerationConfig config={});
     static ChunkKey chunkAt(Vec2 p) { return {int(std::floor(p.x/chunkSize)),int(std::floor(p.y/chunkSize))}; }
     size_t loadedChunkCount() const { return chunks.size(); }
+    struct Terrain { float height=0; Vec2 slope{}; };
+    Terrain terrain(Vec2 p) const;
+    float elevation(Vec2 p) const { return interior?0:terrain(p).height; }
+    float visualHeight(Vec2 p) const { return elevation(p)*.12f; }
+    float rawHeight(Vec2 p) const;
     int biome(Vec2 p) const;
     float terrainNoise(Vec2 p,uint32_t salt,float scale) const;
     bool road(Vec2 p) const; bool water(Vec2 p) const;
@@ -39,6 +44,11 @@ private:
     Vec2 grassCenter{};
     ChunkKey centerChunk{2147483647,2147483647};
     std::map<ChunkKey,std::vector<Tree>> chunks;
+    static constexpr int terrainStep=4,terrainSide=chunkSize/terrainStep+1;
+    std::map<ChunkKey,std::array<float,terrainSide*terrainSide>> heights;
+    void buildHeight(ChunkKey key);
+    std::array<std::array<float,terrainSide*terrainSide>,49> heightLookup{};
+    mutable std::vector<Vec2> surface;
     bool treeAt(int x,int y,Tree& tree) const;
     void streamChunks(Vec2 pos);
     void rebuildShadows();

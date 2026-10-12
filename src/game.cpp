@@ -174,6 +174,7 @@ void Game::tick(float dt) {
     camera.center=lerp(camera.center,hero.pos,1-std::exp(-dt*6));
 }
 void Game::render(Framebuffer& f,float ms,Framebuffer* interface) {
+    camera.terrain=&world; // Terrain projection also keeps objects, labels and mouse aim grounded.
     if(f.width<40||f.height<16) { f.clear(); f.text(0,0,"Resize to at least 40x16"); f.text(0,2,"Q: quit"); return; }
     camera.width=f.width; camera.height=f.height;
     if(frontEnd()) {

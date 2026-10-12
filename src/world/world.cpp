@@ -1,6 +1,48 @@
 #include "world/world.hpp"
 #include "worldgen/atlas.hpp"
 namespace er {
+float Camera::ground(Vec2 p) const { return terrain?terrain->visualHeight(p):0; }
+float World::rawHeight(Vec2 p) const {
+    Vec2 warped=p+Vec2{terrainNoise(p,421,310)-.5f,terrainNoise(p,727,310)-.5f}*130;
+    float continent=terrainNoise(warped,1103,780);
+    float hills=0,amp=1,total=0;
+    for(int i=0;i<4;++i) { hills+=terrainNoise(warped,1501+uint32_t(i)*71,150.f/float(1<<i))*amp; total+=amp; amp*=.5f; }
+    hills=hills/total-.5f;
+    float ridge=1-std::abs(2*terrainNoise(warped,2003,220)-1);
+    float mountain=clamp((terrainNoise(warped,2111,540)-.46f)*3,0.f,1.f);
+    float h=(continent-.43f)*42+hills*19+std::pow(ridge,5.f)*mountain*46;
+    // Broad shelves with narrow but continuous escarpments; no chunk-local random state.
+    float shelf=terrainNoise(warped,2909,170);
+    float t=clamp((shelf-.48f)/.10f,0.f,1.f); h+=12*t*t*(3-2*t);
+    // Keep the established ruins, boss arena and landmark arrival points accessible.
+    float safe=clamp((distance(p,{0,-5})-38)/35,0.f,1.f);
+    for(const auto& l:landmarks) safe=std::min(safe,clamp((distance(p,l.pos)-9)/18,0.f,1.f));
+    return h*safe;
+}
+void World::buildHeight(ChunkKey key) {
+    auto& grid=heights[key];
+    for(int y=0;y<terrainSide;++y) for(int x=0;x<terrainSide;++x)
+        grid[size_t(y*terrainSide+x)]=rawHeight({float(key.first*chunkSize+x*terrainStep),float(key.second*chunkSize+y*terrainStep)});
+}
+World::Terrain World::terrain(Vec2 p) const {
+    if(interior) return {};
+    auto key=chunkAt(p);
+    int cx=key.first-centerChunk.first+chunkRadius,cy=key.second-centerChunk.second+chunkRadius;
+    const auto* grid=(cx>=0&&cx<7&&cy>=0&&cy<7)?&heightLookup[size_t(cy*7+cx)]:nullptr;
+    int x=int(std::floor(p.x/terrainStep)),y=int(std::floor(p.y/terrainStep));
+    float u=p.x/terrainStep-x,v=p.y/terrainStep-y;
+    float a,b,c,d;
+    if(grid) {
+        int ix=x-key.first*(chunkSize/terrainStep),iy=y-key.second*(chunkSize/terrainStep);
+        const auto& g=*grid; size_t i=size_t(iy*terrainSide+ix);
+        a=g[i]; b=g[i+1]; c=g[i+terrainSide]; d=g[i+terrainSide+1];
+    } else { // Queries outside the working set use the identical global lattice.
+        a=rawHeight({float(x*terrainStep),float(y*terrainStep)}); b=rawHeight({float((x+1)*terrainStep),float(y*terrainStep)});
+        c=rawHeight({float(x*terrainStep),float((y+1)*terrainStep)}); d=rawHeight({float((x+1)*terrainStep),float((y+1)*terrainStep)});
+    }
+    return {(a+(b-a)*u)*(1-v)+(c+(d-c)*u)*v,{((b-a)*(1-v)+(d-c)*v)/terrainStep,((c-a)*(1-u)+(d-b)*u)/terrainStep}};
+}
+
 void World::tick(float dt) {
     for(auto& b:blades) { b.velocity+=(b.bend*-22-b.velocity*7)*dt; b.bend+=b.velocity*dt; }
 }
@@ -45,6 +87,12 @@ bool World::treeAt(int x,int y,Tree& tree) const {
 void World::streamChunks(Vec2 pos) {
     auto key=chunkAt(pos); if(key==centerChunk) return;
     centerChunk=key;
+    for(auto it=heights.begin();it!=heights.end();) {
+        if(std::abs(it->first.first-key.first)>chunkRadius||std::abs(it->first.second-key.second)>chunkRadius) it=heights.erase(it); else ++it;
+    }
+    for(int y=key.second-chunkRadius;y<=key.second+chunkRadius;++y) for(int x=key.first-chunkRadius;x<=key.first+chunkRadius;++x)
+        if(!heights.count({x,y})) buildHeight({x,y});
+    for(int y=0;y<7;++y) for(int x=0;x<7;++x) heightLookup[size_t(y*7+x)]=heights.at({key.first+x-chunkRadius,key.second+y-chunkRadius});
     for(auto it=chunks.begin();it!=chunks.end();) {
         if(std::abs(it->first.first-key.first)>chunkRadius||std::abs(it->first.second-key.second)>chunkRadius) it=chunks.erase(it); else ++it;
     }
@@ -103,6 +151,7 @@ bool World::blocked(Vec2 p) const {
     if(interior) return interior->blocked(p);
     // Float-based entities have a documented precision envelope, not a 500-unit map wall.
     if(!std::isfinite(p.x)||!std::isfinite(p.y)||std::abs(p.x)>1000000||std::abs(p.y)>1000000) return true;
+    if(!road(p)&&!placeClearing(p,terrainSeed)&&length(terrain(p).slope)>1.15f) return true;
     if(std::abs(p.y+10)<.7f&&std::abs(p.x)<21&&std::abs(p.x)>3.3f) return true;
     if(std::abs(p.y+22)<.7f&&std::abs(p.x)<21) return true;
     int x=int(std::floor(p.x/8)),y=int(std::floor(p.y/8));
@@ -110,14 +159,29 @@ bool World::blocked(Vec2 p) const {
     return false;
 }
 Vec2 World::move(Vec2 p,Vec2 d) const {
+    if(!interior&&length(d)>0) {
+        float uphill=dot(terrain(p).slope,normalized(d));
+        d=d*(1/(1+std::max(0.f,uphill)*1.8f));
+    }
+    int steps=std::max(1,int(std::ceil(length(d)/.5f)));
+    if(steps>1) { Vec2 step=d/float(steps); for(int i=0;i<steps;++i) {
+        Vec2 next=p+step;
+        if(!blocked(next)) p=next;
+        else { if(!blocked({next.x,p.y})) p.x=next.x; if(!blocked({p.x,next.y})) p.y=next.y; }
+    } return p; }
     Vec2 next=p+d; if(!blocked(next)) return next;
     if(!blocked({next.x,p.y})) p.x=next.x; if(!blocked({p.x,next.y})) p.y=next.y; return p;
 }
 void World::render(Scene& s,float time) const {
     if(interior) { interior->render(s); return; }
     const Camera& c=s.camera;
+    surface.resize(size_t(c.width*c.height));
     for(int y=0;y<c.height;++y) for(int x=0;x<c.width;++x) {
-        Vec2 p=c.unproject({float(x),float(y)}); int gx=int(std::floor(p.x*3)),gy=int(std::floor(p.y*3)); float n=noise(gx,gy,terrainSeed);
+        Vec2 p=c.unproject({float(x),float(y)}); surface[size_t(y*c.width+x)]=p; int gx=int(std::floor(p.x*3)),gy=int(std::floor(p.y*3)); float n=noise(gx,gy,terrainSeed);
+        auto land=terrain(p); float slope=length(land.slope);
+        float inv=1/std::sqrt(1+dot(land.slope,land.slope));
+        Normal normal{-land.slope.x*inv,-land.slope.y*inv,inv};
+        float relief=clamp(.87f+land.height*.012f,.60f,1.25f);
         float shadow=shadows[size_t(clamp(int(p.y-grassCenter.y)+70,0,140)*181+clamp(int(p.x-grassCenter.x)+90,0,180))];
         if(water(p)) { s.put(x,y,p,0,{17,28,43},n>.95f?U'~':U' ',p.y-10); continue; }
         if(road(p)) {
@@ -138,8 +202,11 @@ void World::render(Scene& s,float time) const {
         else if(climate==4) { color=mix({101,82,52},{172,149,104},n); blade=U'.'; }
         else if(climate==5) { color=mix({71,83,99},{155,163,173},n); blade=U'^'; }
         else if(climate==6) { color=mix({73,113,123},{149,162,145},n); blade=U','; }
-        color=color*(1-clamp(length(bend)*.28f,0.f,.55f))*shadow;
-        s.put(x,y,p,0,color,blade,p.y-10);
+        float rock=clamp((slope-.32f)/.75f,0.f,1.f);
+        color=mix(color,mix({75,82,94},{169,170,159},n),rock);
+        if(rock>.4f&&n<rock) blade=slope>1.15f?U"|/\\#"[int(n*3.99f)]:(land.slope.x*land.slope.y>0?U'/':U'\\');
+        color=color*(1-clamp(length(bend)*.28f,0.f,.55f))*shadow*relief;
+        s.put(x,y,p,0,color,blade,p.y-10,normal);
     }
     if(std::abs(c.center.x)<120&&std::abs(c.center.y)<120) {
     // A shallow stone volume: back facade, side piers, front arches and crenellations.
@@ -189,13 +256,13 @@ void World::reflections(Scene& s,float time) const {
     if(generated) for(int x=0;x<c.width;++x) {
         float bank=c.unproject({float(x),-60}).y;
         for(int y=-60;y<c.height;++y) {
-            Vec2 point=c.unproject({float(x),float(y)});
+            Vec2 point=y>=0?surface[size_t(y*c.width+x)]:c.unproject({float(x),float(y)});
             if(!water(point)) bank=point.y;
             if(y>=0) banks[size_t(y*c.width+x)]=bank;
         }
     }
     for(int y=0;y<c.height;++y) for(int x=0;x<c.width;++x) {
-        Vec2 target=c.unproject({float(x),float(y)}); if(!water(target)) continue;
+        Vec2 target=surface[size_t(y*c.width+x)]; if(!water(target)) continue;
         float shoreline=shore(target.x);
         if(generated&&std::max(std::abs(target.x),std::abs(target.y))>=180) shoreline=banks[size_t(y*c.width+x)];
         float shoreY=c.project({target.x,shoreline}).y,deep=y-shoreY;

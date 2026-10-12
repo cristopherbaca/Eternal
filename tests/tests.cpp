@@ -32,6 +32,28 @@ int main() { try {
     InputParser parser; check(parser.feed("\x1b[<0;12;").keys.empty(),"split mouse input"); auto in=parser.feed("8Mw"); check(in.click&&in.mouseX==11&&in.mouseY==7&&in.keys=="w","mouse continuation");
     check(!parser.feed("\x1b[10;").cursorReport,"partial terminal acknowledgement waits");
     auto reply=parser.feed("20Rw"); check(reply.cursorReport&&reply.keys=="w","terminal acknowledgement preserves player input");
+    {
+    GenerationConfig bare; bare.treeDensity=0; World relief(42,bare),same(42,bare),different(43,bare);
+    float low=1e6f,high=-1e6f; bool varies=false,cliff=false,uphill=false;
+    for(int y=400;y<1800;y+=17) for(int x=400;x<1800;x+=17) {
+        Vec2 p{float(x),float(y)}; auto t=relief.terrain(p);
+        low=std::min(low,t.height); high=std::max(high,t.height);
+        varies|=std::abs(t.height-different.elevation(p))>1;
+        if(!relief.road(p)&&!placeClearing(p,relief.terrainSeed)&&length(t.slope)>1.15f) cliff|=relief.blocked(p);
+        if(!uphill&&length(t.slope)>.12f&&length(t.slope)<.5f&&!relief.blocked(p)) {
+            Vec2 dir=normalized(t.slope); float up=distance(p,relief.move(p,dir*.1f)),down=distance(p,relief.move(p,dir*-.1f));
+            uphill=up>0&&up<down*.95f;
+        }
+    }
+    check(high-low>35&&varies,"warped heightmap has seed-specific large-scale relief");
+    check(cliff&&uphill,"terrain blocks cliffs and slows uphill movement");
+    Vec2 edge{640,768}; float before=relief.elevation(edge); relief.focus(edge);
+    check(std::abs(before-relief.elevation(edge))<.0001f&&std::abs(before-same.elevation(edge))<.0001f,"cached and unloaded height samples agree");
+    check(std::abs(relief.elevation(edge+Vec2{.001f,0})-relief.elevation(edge-Vec2{.001f,0}))<.02f,"height is continuous across chunk boundaries");
+    Camera camera; camera.terrain=&relief; camera.center=edge;
+    Vec2 point=edge+Vec2{8,5}; check(distance(camera.unproject(camera.project(point)),point)<.08f,"terrain projection preserves mouse-to-world alignment");
+    relief.focus({10000,10000}); check(relief.loadedChunkCount()==49&&std::abs(before-relief.elevation(edge))<.0001f,"terrain unloads and regenerates deterministically");
+    }
     World a(42),b(42); check(a.trees.size()==b.trees.size(),"world repeatability"); check(!a.blocked({0,-600}),"old map boundary removed");
     a.pushGrass({0,12},3,10); a.tick(1.f/60); check(length(a.grassBend({1,12}))>0,"grass deflects");
     for(int i=0;i<600;++i) a.tick(1.f/60); check(length(a.grassBend({1,12}))<.001f,"grass spring recovers");
