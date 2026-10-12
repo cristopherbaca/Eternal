@@ -167,7 +167,7 @@ int main(int argc,char** argv) {
                 auto dimensions=terminal.size();
 #ifdef __APPLE__
                 if(window) {
-                    dimensions=game.camera.perspective?window->interfaceSize():window->size(game.detail);
+                    dimensions=window->size(game.detail);
                     auto [uw,uh]=window->interfaceSize();
                     if(interface.width!=uw||interface.height!=uh) interface.resize(uw,uh);
                 }
@@ -204,7 +204,7 @@ int main(int argc,char** argv) {
                         interface.text(x,y+1,"Mouse: look | Wheel: zoom | [ ] FOV");
                         interface.text(x,y+2,"Terrain GPU: "+std::to_string(window->terrainMilliseconds())+" ms");
                         interface.text(x,y+3,"Composite GPU: "+std::to_string(window->gpuMilliseconds())+" ms");
-                        interface.text(x,y+4,"Chunks: "+std::to_string(terrain3D.chunks.size()));
+                        interface.text(x,y+4,"Grid: "+std::to_string(frame.width)+"x"+std::to_string(frame.height)+" | Chunks: "+std::to_string(terrain3D.chunks.size()));
                     }
                     submitted=window->present(frame,interface,perspective?&terrain3D:nullptr,perspective?&game.camera:nullptr,game.screen==er::Screen::Playing?1.f:.24f);
                 }

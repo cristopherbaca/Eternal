@@ -115,3 +115,14 @@ Reference: earlier supplied video paths are currently absent and ffmpeg is not i
 - Build succeeds and 253 core checks pass. Native raw/ASCII captures saved under docs/screenshots/19-first-person-*.png. Native input automation could not reliably acquire macOS keyboard focus, so its active-capture/held-key checks are not claimed as passing.
 - Visual conversion is still the basic Step 1 ramp with placeholder glyph entities. Next: improve ASCII slope/edge readability, then the remaining renderer stages. Budget remaining unavailable; stop for user review.
 - First-person native 120-frame timing: 57.88 submissions/s at 60 target, 2.77 ms mean / 6.05 ms p95 CPU work, 0.218 ms terrain GPU and 2.164 ms composite GPU.
+
+## ASCII density/readability correction — ready for review
+- User requested finer, more recognizable ASCII. Restore independent world density (the 3D path incorrectly used the coarse HUD grid), preserving the HUD grid and layouts.
+- Add a GPU conversion kernel once per cell: depth/normal contour glyphs, world-anchored near-ground variation with distance fade, brighter foreground and faint source-colored backgrounds for continuous silhouettes. No frame-random noise or screen-history ghosting.
+- Validate native shader compilation, raw/ASCII captures, core regression and frame timings before committing. Full object models and temporal reprojection remain later work.
+- Budget remaining: unavailable.
+- Result: default source grid is 320×100 instead of 160×50 (four times the cells), with 160×50 HUD text. Existing Settings → Window detail controls all three native presets again; F9 displays actual grid dimensions.
+- Warning-free build and 253 core checks pass. New focus-independent native renderer checks pass under Metal API validation: all density presets, growing/shrinking GPU buffers, independent HUD size, raw view and 2D fallback. No Metal validation errors.
+- 240-frame native ASCII measurement: 58.70 submissions/s at 60 target; CPU work 3.92 ms mean / 5.65 ms p95; terrain GPU 0.417 ms and conversion/composite GPU 2.120 ms. This does not establish sustained 60+ FPS or display scanout timing.
+- Inspected matching raw/ASCII captures in docs/screenshots/20-density-*.png against the previous first-person capture. Finer contours and continuous color improve terrain shape; repeated glyph bands, coarse terrain geometry and flat placeholder entities remain. Source videos remain unavailable at the supplied paths; no matching video frame can be shown. Full models and temporal reprojection were not started.
+- Budget remaining: unavailable. Stop for user review before the next renderer stage.

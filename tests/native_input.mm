@@ -2,13 +2,39 @@
 #include "game.hpp"
 #import <AppKit/AppKit.h>
 #include <iostream>
+#include <cstring>
 #include <stdexcept>
 static void check(bool ok,const char* message) { if(!ok) throw std::runtime_error(message); }
-int main() { @autoreleasepool { try {
+int main(int argc,char** argv) { @autoreleasepool { try {
     er::Window window;
     er::Game game; game.screen=er::Screen::Title;
     er::Framebuffer world(320,100),ui(160,50);
     game.render(world,16,&ui); window.present(world,ui);
+    // Exercise GPU conversion and reallocations without depending on desktop focus.
+    if(argc>1&&std::strcmp(argv[1],"--renderer-only")==0) {
+        er::Terrain3D mesh; mesh.update(game.world,game.hero.pos);
+        er::Camera camera; camera.perspective=true; camera.firstPerson=true;
+        camera.terrain=&game.world; camera.center=game.hero.pos;
+        auto hud=window.interfaceSize();
+        check(window.size(1).first>hud.first,"world detail is finer than HUD text");
+        for(int detail:{0,2,1,0}) {
+            auto dimensions=window.size(detail); world.resize(dimensions.first,dimensions.second);
+            camera.width=world.width; camera.height=world.height;
+            while(!window.ready()) [NSThread sleepForTimeInterval:.001];
+            check(window.present(world,ui,&mesh,&camera),"density change submits GPU conversion");
+            while(!window.ready()) [NSThread sleepForTimeInterval:.001];
+            check(window.gpuMilliseconds()>0,"ASCII conversion completes successfully");
+            check(window.interfaceSize()==hud,"world density preserves HUD size");
+        }
+        window.raw3D(true);
+        check(window.present(world,ui,&mesh,&camera),"raw preview after density changes");
+        while(!window.ready()) [NSThread sleepForTimeInterval:.001];
+        check(window.present(world,ui),"2D fallback after GPU conversion");
+        while(!window.ready()) [NSThread sleepForTimeInterval:.001];
+        check(window.gpuMilliseconds()>0,"fallback completes successfully");
+        std::cout<<"PASS: all ASCII densities, buffer resize, independent HUD, raw view and 2D fallback\n";
+        return 0;
+    }
     for(int i=0;i<30;++i) { window.poll(true); [NSThread sleepForTimeInterval:.01]; }
     NSWindow* native=[NSApp mainWindow];
     if(!native) for(NSWindow* candidate in [NSApp windows]) if([candidate.title hasPrefix:@"EternalRPG"]) { native=candidate; break; }

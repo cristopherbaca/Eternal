@@ -1,6 +1,6 @@
-# 3D renderer — Step 1 foundation
+# 3D renderer
 
-Completed this step only. The native window now draws a triangle terrain mesh through a perspective camera into RGBA16Float color/normal targets and a Depth32Float target at the ASCII grid resolution (about 8×16 window points per cell). A preliminary brightness ramp presents those cells through the existing glyph atlas. F8 exposes the raw color target. The source frame remains GPU resident; no per-frame pixel readback is used.
+The initial foundation was Step 1. The native window now draws a triangle terrain mesh through a perspective camera into RGBA16Float color/normal targets and a Depth32Float target at the ASCII grid resolution (now 4×8 window points per cell at the default Detailed setting). A GPU ASCII conversion pass presents those cells through the existing glyph atlas; see the density correction below for the current implementation. F8 exposes the raw color target. The source frame remains GPU resident; no per-frame pixel readback is used.
 
 The new camera module supplies both CPU world/screen projection and the Metal camera basis. Picking marches a screen ray to the nearest terrain crossing, refines it, and uses the same triangle diagonal as the mesh. World objects and player labels use terrain heights through this module. WASD follows the orbit camera. A bounded 7×7 mesh cache regenerates only entering chunks and uploads when its revision changes. The terrain generator, seed and save format are unchanged.
 
@@ -32,3 +32,19 @@ The native 3D view now defaults to a player-eye camera, 1.75 world units above t
 253 core checks pass, including eye position, crosshair projection, rotation in place and far clipping. The native app successfully rendered both [raw](screenshots/19-first-person-raw.png) and [ASCII](screenshots/19-first-person-ascii.png) captures. Full native input automation did not pass in this run because macOS did not consistently give the test window keyboard focus (including the pre-existing held-WD check); active mouse capture still needs a focused interactive desktop check.
 
 This corrects the intended viewpoint. The broad brightness bands and temporary glyph models remain the next visual work; they are not presented as finished first-person graphics. Step 2 is still waiting for the user's next instruction.
+
+## ASCII density and readability correction
+
+The first-person path accidentally used the coarse HUD grid for the world. It now uses `Window::size(detail)` independently: Comfort ~213×66, Detailed 320×100, Dense ~426×133 at a 1280×800 window. HUD text remains 160×50. Choose **Settings → Window detail**; F9 shows the actual source grid. On a 2× Retina display, Detailed corresponds to 8×16 physical pixels per cell.
+
+A compute kernel converts each source cell once, using neighboring depth/normal discontinuities for contour glyphs, a brightness ramp, smooth world-position detail fading with distance, brighter foreground colors and subtle source-colored cell backgrounds. This preserves terrain color and silhouettes between glyph strokes. Detail does not change randomly with frame time. There is no temporal history/reprojection yet; stability during interactive movement still needs review. The existing glyph entities and separate crisp HUD are composed afterwards. Raw F8 preview bypasses glyph presentation of terrain.
+
+Build and 253 core regression checks pass. `MTL_DEBUG_LAYER=1 ./build/eternal_native_input_tests --renderer-only` passes all density presets, GPU buffer reallocations, independent HUD dimensions, raw preview and 2D fallback without relying on macOS input focus. This is renderer validation, not a replacement for the outstanding focused desktop input check.
+
+A 240-frame Detailed ASCII run measured 58.70 submissions/s at a 60 target, CPU work 3.92 ms mean / 5.65 ms p95, terrain GPU 0.417 ms and conversion + atlas/HUD composite GPU 2.120 ms. Conversion and composition share one command buffer and are reported together. No capture or Metal validation was enabled during this timing run.
+
+- [Revised ASCII](screenshots/20-density-ascii.png)
+- [Matching raw view](screenshots/20-density-raw.png)
+- [Previous first-person density](screenshots/19-first-person-ascii.png)
+
+Same seed/location as the earlier captures. The revised image has finer horizon contours and stronger continuous terrain colors. Flat placeholder creatures, terrain glyph bands and missing 3D vegetation remain visible gaps; density alone cannot supply the later object-model stage. The original reference videos are still unavailable, so these comparisons use existing game captures, not extracted reference frames. This is a scoped density correction, not completion of all Step 2 temporal/debug features or later renderer stages.

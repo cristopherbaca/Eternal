@@ -31,6 +31,8 @@ struct Window::Impl {
     id<MTLCommandQueue> queue;
     id<MTLRenderPipelineState> pipeline,terrainPipeline;
     id<MTLDepthStencilState> depthState;
+    id<MTLComputePipelineState> asciiPipeline;
+    id<MTLBuffer> terrainCells;
     id<MTLTexture> color3D,normal3D,depth3D;
     id<MTLBuffer> meshBuffer;
     size_t meshVertices=0; uint64_t meshRevision=~uint64_t(0);
@@ -66,10 +68,58 @@ fragment TerrainTargets terrainFragment(TerrainOut in [[stage_in]]) {
     float light=.32+.68*max(0.0,dot(n,normalize(float3(-.5,-.35,.8))));
     return {float4(in.color*light,1),float4(n*.5+.5,1)};
 }
+// Convert once per source cell, rather than repeating edge detection per display pixel.
+uint packColor(float3 c) {
+    uint3 b=uint3(clamp(c*255.0,0.0,255.0));
+    return b.x|(b.y<<8)|(b.z<<16);
+}
+kernel void asciiCells(texture2d<float,access::read> color [[texture(0)]],
+                       texture2d<float,access::read> normals [[texture(1)]],
+                       depth2d<float,access::read> depth [[texture(2)]],
+                       device Cell* output [[buffer(0)]],constant View3D& view [[buffer(1)]],
+                       uint2 cell [[thread_position_in_grid]]) {
+    uint2 size=uint2(color.get_width(),color.get_height());
+    if(any(cell>=size)) return;
+    uint index=cell.y*size.x+cell.x;
+    float d=depth.read(cell);
+    float3 navy=float3(.043,.043,.102);
+    if(d>=.999999) { output[index]={32,packColor(navy),packColor(navy),0}; return; }
+    float3 source=color.read(cell).rgb;
+    float3 n=normalize(normals.read(cell).xyz*2-1);
+    // Reconstruct position to anchor detail to the terrain, never frame time or screen noise.
+    float z=view.lens.z*view.lens.w/(view.lens.w-d*(view.lens.w-view.lens.z));
+    float2 uv=(float2(cell)+.5)/float2(size);
+    float3 world=view.eye.xyz+z*(view.forward.xyz+view.right.xyz*((uv.x*2-1)*view.lens.y/view.lens.x)+view.up.xyz*((1-uv.y*2)/view.lens.x));
+    float grain=sin(world.x*1.7+sin(world.y*.9))*sin(world.y*1.3);
+    // Fade sub-cell detail into the distance to avoid aliasing as the camera moves.
+    grain*=1-smoothstep(12.0,55.0,z);
+    float light=dot(source,float3(.2126,.7152,.0722));
+    constexpr char ramp[]=" .,:;irsXA#@";
+    uint glyph=uint(ramp[clamp(int(light*16+grain*.75),1,10)]);
+    float2 gradient=float2(0); float strength=0;
+    for(int y=-1;y<=1;++y) for(int x=-1;x<=1;++x) {
+        if(x==0&&y==0) continue;
+        uint2 q=uint2(clamp(int2(cell)+int2(x,y),int2(0),int2(size)-1));
+        float neighbor=depth.read(q);
+        float3 nn=normals.read(q).xyz*2-1;
+        float nz=view.lens.z*view.lens.w/(view.lens.w-neighbor*(view.lens.w-view.lens.z));
+        // Relative depth jumps identify silhouettes; normal changes identify creases.
+        float edge=neighbor>=.999999?1.0:max(smoothstep(.18,.5,abs(nz-z)/max(z,1.0)),smoothstep(.16,.4,length(nn-n)));
+        gradient+=float2(x,y)*edge; strength=max(strength,edge);
+    }
+    if(strength>.5&&length(gradient)>.4) {
+        float2 a=abs(gradient);
+        glyph=a.x>a.y*2?uint('|'):a.y>a.x*2?uint('_'):(gradient.x*gradient.y>0?uint('/'):uint('\\'));
+    }
+    // A faint source-colored cell background preserves mass and distant silhouettes.
+    float3 foreground=clamp(source*1.45+float3(.055)+strength*.10,0.0,1.0);
+    float3 background=mix(navy,source,.25);
+    output[index]={glyph,packColor(foreground),packColor(background),0};
+}
 fragment float4 draw(Vertex in [[stage_in]], constant Cell* cells [[buffer(0)]],
                      constant uint2& grid [[buffer(1)]], texture2d<float> atlas [[texture(0)]],
                      constant Cell* interface [[buffer(2)]], constant uint2& uiGrid [[buffer(3)]],
-                     texture2d<float> sceneColor [[texture(1)]],constant uint& mode [[buffer(4)]],constant float& backdrop [[buffer(5)]]) {
+                     texture2d<float> sceneColor [[texture(1)]],constant uint& mode [[buffer(4)]],constant float& backdrop [[buffer(5)]],constant Cell* terrainCells [[buffer(6)]]) {
     float2 p=clamp(in.uv,float2(0),float2(0.999999))*float2(grid);
     uint2 cell=uint2(p);
     Cell c=cells[cell.y*grid.x+cell.x];
@@ -77,11 +127,8 @@ fragment float4 draw(Vertex in [[stage_in]], constant Cell* cells [[buffer(0)]],
     if(mode!=0) {
         source=sceneColor.read(min(cell,uint2(sceneColor.get_width()-1,sceneColor.get_height()-1))).rgb*backdrop;
         if(c.glyph<=32) {
-            constexpr char ramp[]=" .:-=+*#%@";
-            float light=dot(source,float3(.2126,.7152,.0722));
-            c.glyph=uint(ramp[clamp(int(light*12),0,9)]);
-            uint3 bytes=uint3(clamp(source*255,float3(0),float3(255)));
-            c.fg=bytes.x|(bytes.y<<8)|(bytes.z<<16); c.bg=0x1a0b0b;
+            c=terrainCells[cell.y*grid.x+cell.x];
+            c.fg=packColor(rgb(c.fg)*backdrop); c.bg=packColor(rgb(c.bg)*backdrop);
         }
     }
     float2 ui=clamp(in.uv,float2(0),float2(0.999999))*float2(uiGrid);
@@ -105,6 +152,8 @@ Window::Window():impl(std::make_unique<Impl>()) {
         NSError* error=nil;
         id<MTLLibrary> library=[v.device newLibraryWithSource:[NSString stringWithUTF8String:shader] options:nil error:&error];
         if(!library) throw std::runtime_error([[error localizedDescription] UTF8String]);
+        v.asciiPipeline=[v.device newComputePipelineStateWithFunction:[library newFunctionWithName:@"asciiCells"] error:&error];
+        if(!v.asciiPipeline) throw std::runtime_error([[error localizedDescription] UTF8String]);
         MTLRenderPipelineDescriptor* descriptor=[MTLRenderPipelineDescriptor new];
         descriptor.vertexFunction=[library newFunctionWithName:@"vertices"];
         descriptor.fragmentFunction=[library newFunctionWithName:@"draw"];
@@ -296,6 +345,15 @@ bool Window::present(const Framebuffer& frame,const Framebuffer& interface,const
             [encoder setVertexBytes:&view length:sizeof(view) atIndex:1];
             [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:v.meshVertices]; [encoder endEncoding];
             [terrainCommand commit]; v.pendingTerrain=terrainCommand;
+            size_t cellBytes=size_t(frame.width)*frame.height*sizeof(GPUCell);
+            if(!v.terrainCells||v.terrainCells.length<cellBytes)
+                v.terrainCells=[v.device newBufferWithLength:cellBytes options:MTLResourceStorageModePrivate];
+            auto convert=[command computeCommandEncoder];
+            [convert setComputePipelineState:v.asciiPipeline];
+            [convert setTexture:v.color3D atIndex:0]; [convert setTexture:v.normal3D atIndex:1]; [convert setTexture:v.depth3D atIndex:2];
+            [convert setBuffer:v.terrainCells offset:0 atIndex:0]; [convert setBytes:&view length:sizeof(view) atIndex:1];
+            [convert dispatchThreads:MTLSizeMake(frame.width,frame.height,1) threadsPerThreadgroup:MTLSizeMake(8,8,1)];
+            [convert endEncoding];
         }
         auto pass=[MTLRenderPassDescriptor renderPassDescriptor];
         pass.colorAttachments[0].texture=drawable.texture;
@@ -304,6 +362,7 @@ bool Window::present(const Framebuffer& frame,const Framebuffer& interface,const
         auto encoder=[command renderCommandEncoderWithDescriptor:pass];
         [encoder setRenderPipelineState:v.pipeline];
         [encoder setFragmentBuffer:v.cells offset:0 atIndex:0];
+        [encoder setFragmentBuffer:use3D?v.terrainCells:v.cells offset:0 atIndex:6];
         uint32_t grid[]={uint32_t(frame.width),uint32_t(frame.height)};
         [encoder setFragmentBytes:grid length:sizeof(grid) atIndex:1];
         [encoder setFragmentTexture:v.atlas atIndex:0];
