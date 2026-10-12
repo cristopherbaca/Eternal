@@ -72,3 +72,10 @@ Constraints: preserve the existing renderer, combat, class definitions, HUD/menu
 - 228 core checks pass, including recipient identity, rewards, escort movement/threat waiting, transition guards and saved active escort. Native Metal input checks also pass.
 - Limits: escorts cannot be injured, have simple collision-aware following (guide them around obstacles), and return to their home schedule after arrival. There is no abandonment/failure UI yet. Rescue/stealth contracts, autonomous social relationships and item rarity/affixes remain unfinished.
 - Budget re-check: no usage API is available; remaining allowance unknown. Next phase: escort cancellation/recovery and richer quest outcomes, followed by equipment rarity/affixes.
+
+# Terrain-only improvement plan (2026-10-12)
+Budget: no usage/status API is available; remaining allowance unknown.
+Scope: terrain generation, projection, movement slope response and biome presentation only. Preserve combat, classes, HUD/menu layout, NPCs and quests. Existing region footer will display generated region names.
+1. Height/shape: warped multi-octave elevation, ridges/valleys/plateaus/basins, cached chunks, slope lighting/cliffs, consistent height projection and slope-aware movement. Build, tests, performance, commit.
+2. Biomes: height/moisture/temperature blend, eight landscapes, vegetation/rocks/plants/ambient particles and readable water. Build, tests, visual/performance checks, commit.
+Reference videos from earlier messages are absent from their supplied Downloads paths; ffmpeg is unavailable. Existing repository screenshots are available for visual comparison.
