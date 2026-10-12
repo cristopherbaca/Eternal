@@ -9,6 +9,8 @@
 #include "npc/population.hpp"
 #include "history/chronicle.hpp"
 #include "quests/quest.hpp"
+#include "worldgen/environment.hpp"
+#include <deque>
 namespace er {
 enum class Screen { Title, Playing, Paused, Settings, Map, Create, Saves, SaveActions, DeleteSave, Talk, Trade, Journal, Lore };
 struct BossFight { bool active=false,won=false; float elapsed=0,ring=3,breath=6,wing=11,adds=16; int phase=1; };
@@ -39,6 +41,8 @@ public:
     Vec2 outsidePosition{}; std::vector<Entity> outsideMobs; std::vector<Loot> outsideLoot;
     float transition=0;
     void interactPlace(); void leaveInterior(); void tickInterior(float dt);
+    Environment environment;
+    std::deque<std::string> eventLog; std::string lastEvent;
     Atlas atlas;
     Population population; Chronicle chronicle; std::vector<Quest> quests;
     std::map<std::string,int> reputation;

@@ -316,5 +316,15 @@ int main() { try {
     check(livingRestored.loadAdventure(0)&&livingRestored.quests.size()==2&&livingRestored.quests[0].rewarded&&livingRestored.chronicle.learned.count(3),"quest and lore progress persist");
     check(livingRestored.chronicle.account(0)==social.chronicle.account(0)&&livingRestored.population.changes[citizen.id].gold==social.population.changes[citizen.id].gold,"structured history and merchant balances persist");
     std::filesystem::remove_all(livingRoot);
+    World climateWorld(918); std::set<int> climates;
+    for(int y=-5000;y<=5000;y+=128) for(int x=-5000;x<=5000;x+=128) climates.insert(climateWorld.biome({float(x),float(y)}));
+    check(climates.count(4)&&climates.count(5)&&climates.count(6),"procedural frontier includes desert mountain and coast climates");
+    check(worldHour(0)==8&&worldHour(45*16)==0,"world clock advances and wraps deterministically");
+    check(weatherAt(42,360)==weatherAt(42,360),"weather is determined by seed and time");
+    Environment wildlife; wildlife.tick(climateWorld,{300,300},{},0,0);
+    check(!wildlife.animals.empty()&&wildlife.animals.size()<=18,"wildlife simulation stays bounded");
+    Framebuffer daylight(120,40),nightlight(120,40); for(auto& c:daylight.cells) c={U'.',white,background}; nightlight.cells=daylight.cells;
+    Camera climateCamera; wildlife.atmosphere(daylight,climateCamera,42,0); wildlife.atmosphere(nightlight,climateCamera,42,45*15);
+    check(daylight.cells!=nightlight.cells,"day and night have visibly different atmosphere");
     std::cout<<checks<<" checks passed: math, renderer, input, combat, AI, progression, boss, menus and deterministic replay\n";
 } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; } }

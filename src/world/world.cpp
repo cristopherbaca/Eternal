@@ -28,6 +28,10 @@ int World::biome(Vec2 p) const {
         return 0;
     }
     float climate=terrainNoise(p,991,config.biomeScale);
+    float elevation=terrainNoise(p,1889,config.biomeScale*1.7f);
+    if(elevation>.72f) return 5;
+    if(elevation<.24f) return 6;
+    if(climate>.74f) return 4;
     return climate<.3f?1:climate>.7f?2:terrainNoise(p,157,config.biomeScale)<.4f?3:0;
 }
 bool World::treeAt(int x,int y,Tree& tree) const {
@@ -86,12 +90,14 @@ bool World::water(Vec2 p) const {
     float edge=std::max(std::abs(p.x),std::abs(p.y));
     if(edge<180) return p.y>shore(p.x)&&p.y<85+5*std::sin(p.x*.07f)&&std::abs(p.x)<72;
     if(road(p)) return false;
+    float river=p.x-std::round(p.x/512)*512-45*std::sin(p.y*.012f);
+    if(edge>256&&std::abs(river)<3) return true;
     float blend=clamp((edge-180)/60,0.f,1.f);
     return 1-blend+blend*terrainNoise(p,317,config.biomeScale*.7f)<config.lakeThreshold;
 }
 const char* World::region(Vec2 p) const {
     if(distance(p,{30,-30})<25) return "Dragon Hollow";
-    const char* names[]={"Ashenmere Wilds","Frostwood","Ember Hills","Reedlands"}; return names[biome(p)];
+    const char* names[]={"Ashenmere Wilds","Frostwood","Ember Hills","Reedlands","Sunscar Desert","Highspire Mountains","Saltwind Coast"}; return names[biome(p)];
 }
 bool World::blocked(Vec2 p) const {
     if(interior) return interior->blocked(p);
@@ -129,6 +135,9 @@ void World::render(Scene& s,float time) const {
         if(climate==2) color=mix(color,{135,95,62},.4f);
         else if(climate==1) color=mix(color,{106,159,178},.35f);
         else if(climate==3) color=mix(color,{46,111,93},.25f);
+        else if(climate==4) { color=mix({101,82,52},{172,149,104},n); blade=U'.'; }
+        else if(climate==5) { color=mix({71,83,99},{155,163,173},n); blade=U'^'; }
+        else if(climate==6) { color=mix({73,113,123},{149,162,145},n); blade=U','; }
         color=color*(1-clamp(length(bend)*.28f,0.f,.55f))*shadow;
         s.put(x,y,p,0,color,blade,p.y-10);
     }

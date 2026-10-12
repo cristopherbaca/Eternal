@@ -15,7 +15,7 @@ Game::Game(uint64_t seed,const std::filesystem::path& dataPath,const ModSet& mod
 void Game::spawnMob(Vec2 pos,int archetype) {
     if(mobs.size()>=100) return;
     const auto& def=data.enemies.at(size_t(archetype)); Entity e; e.id=nextMobId++; e.name=def.name; e.kind=Kind::Mob; e.archetype=archetype;
-    e.pos=e.home=pos; e.maxHp=e.hp=def.hp; e.armor=def.armor; e.power=def.power; e.speed=def.speed; e.color=def.color; e.role=archetype==1?Role::Mage:Role::Warrior; e.level=1+std::min(99,int(distance(pos,{0,12})/world.config.levelDistance)); e.hp=e.maxHp*=1+.2f*(e.level-1); e.power*=1+.15f*(e.level-1); mobs.push_back(e);
+    e.pos=e.home=pos; e.maxHp=e.hp=def.hp; e.armor=def.armor; e.power=def.power; e.speed=def.speed; e.color=def.color; e.role=archetype==1?Role::Mage:Role::Warrior; e.level=1+std::min(99,int(distance(pos,{0,12})/world.config.levelDistance)); e.hp=e.maxHp*=1+.2f*(e.level-1); e.power*=1+.15f*(e.level-1); if(archetype==0&&hash(uint32_t(e.id)^world.terrainSeed)%7==0) e.name="Wolf"; mobs.push_back(e);
 }
 void Game::streamEnemies() {
     auto center=World::chunkAt(hero.pos); enemyCenter=center;
@@ -138,6 +138,7 @@ void Game::input(const Input& in) {
     if(in.click) casts.push_back(0);
 }
 void Game::tick(float dt) {
+    if(message!=lastEvent) { eventLog.push_front(message); if(eventLog.size()>5) eventLog.pop_back(); lastEvent=message; }
     if(screen!=Screen::Playing) return;
     saveTimer+=dt;
     if(activeSave>=0&&saveTimer>=30) { saveTimer=0; if(!saveAdventure()) message=menuNotice; }
@@ -152,7 +153,7 @@ void Game::tick(float dt) {
     }
     }
     time+=dt;
-    if(!world.interior) population.tick(atlas,world,time,dt,weatherAt(world.terrainSeed,time)!=0);
+    if(!world.interior) { population.tick(atlas,world,time,dt,weatherAt(world.terrainSeed,time)!=0); environment.tick(world,hero.pos,mobs,time,dt); }
     movementTime-=dt; if(movementTime<=0) velocity={};
     if(hero.alive) {
         hero.pos=world.move(hero.pos,velocity*dt*(world.water(hero.pos)?.55f:1.f)*(hero.slow>0?.35f:1.f));
@@ -185,15 +186,17 @@ void Game::render(Framebuffer& f,float ms,Framebuffer* interface) {
         else renderUI(f,ms);
         return;
     }
-    scene.begin(camera); world.render(scene,time); if(!world.interior) { atlas.focus(hero.pos); atlas.render(scene,time); population.render(scene,time); }
+    scene.begin(camera); world.render(scene,time); if(!world.interior) { atlas.focus(hero.pos); atlas.render(scene,time); population.render(scene,time); environment.render(scene,time); }
     for(const auto& e:party) if(e.alive) drawCharacter(scene,e.pos,e.color,time,length(e.velocity)>0,int(e.role));
     for(const auto& e:mobs) if(e.alive) {
-        if(e.archetype==0) drawSkeleton(scene,e.pos,mix(e.color,{237,128,104},.55f),time); else drawCharacter(scene,e.pos,mix(e.color,{237,128,104},.55f),time,length(e.velocity)>0,int(e.role));
+        if(e.name=="Wolf") { scene.point(e.pos,1,{172,168,166},U'w'); scene.point(e.pos+Vec2{1,0},1.5f,{220,179,128},U'>'); }
+        else if(e.archetype==0) drawSkeleton(scene,e.pos,mix(e.color,{237,128,104},.55f),time); else drawCharacter(scene,e.pos,mix(e.color,{237,128,104},.55f),time,length(e.velocity)>0,int(e.role));
     }
     for(const auto& item:loot) scene.point(item.pos,.3f,{192,171,109},U'*',{0,0,1},.2f);
     if(dragon.alive&&!world.interior) drawDragon(scene,dragon.pos,time);
     combat.render(scene,time);
     world.reflections(scene,time); scene.convert(f);
+    if(!world.interior) environment.atmosphere(f,camera,world.terrainSeed,time);
     if(hero.alive) playerAvatar(f,camera,hero,time);
     if(showNames) { nameLabel(f,camera,hero); for(const auto& e:party) nameLabel(f,camera,e,e.id==hero.target);
     for(const auto& e:mobs) nameLabel(f,camera,e,e.id==hero.target);
@@ -216,6 +219,10 @@ void Game::renderUI(Framebuffer& f,float ms) {
     if(frontEnd()) { renderMenu(f); return; }
     hud(f,hero,party,fight.active?&dragon:nullptr,ms);
     minimap(f);
+    if(f.width>=100&&f.height>=40&&!party.size()) {
+        int y=f.height-9;
+        for(size_t i=0;i<std::min(size_t(3),eventLog.size());++i) f.text(2,y+int(i),eventLog[i].substr(0,70),{124,158,163});
+    }
     for(int y=f.height-5;y<f.height;++y) for(int x=0;x<f.width;++x) f.put(x,y,U' ');
     int slotWidth=std::max(1,(f.width-4)/6);
     for(int i=0;i<6;++i) {

@@ -42,3 +42,11 @@ Constraints: preserve the existing renderer, combat, class definitions, HUD/menu
 - 189 checks pass, including NPC identity/schedules, varied histories, interaction, the full dungeon/reward loop, repeat work, trade and living-world persistence.
 - Limits: social relationships are generated references, not autonomous relationship simulation. Shops have renewable generated stock; inn/service actions are lightweight. No crime/jail, perk tree, crafting or random-affix items yet. Weather currently influences schedules but is not visually rendered. These remain explicit next pieces.
 - Budget re-check: no status API is exposed; remaining allowance unknown.
+
+## Phase 2b result: environment and ambient life
+- Added deterministic frontier desert/mountain/coast biomes and winding river channels while retaining the original origin biomes. Existing glyph rendering and combat remain intact.
+- The saved world clock drives day/night brightness, clear/rain/snow/fog/storm cycles, visibility and NPC shelter schedules. Minimap shows time/weather. Deer flee nearby players/wolves, birds move above the ground, and some existing streamed enemy encounters are wolves using normal combat AI. Ambient wildlife is capped at 18; it regenerates on streaming rather than persisting every animal.
+- Added a three-line recent-event feed on roomy HUDs without changing the existing panels or menu style.
+- Tests cover added climates, deterministic clock/weather, bounded wildlife and visible day/night differences. Terrain remains streamed; atmospheric effects are a lightweight framebuffer pass.
+- Limits: weather is regional ambiance rather than a fluid simulation; wolves use existing hostile combat AI, not an ecological food chain. Roads do not yet form an authored political trade network.
+- Budget re-check: remaining usage remains unavailable. Next: integration/performance checks and documenting exact implemented versus remaining scope.
