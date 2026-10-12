@@ -1,0 +1,4 @@
+"Recover the lost heirloom from {place}"
+"Clear the guardians of {place}"
+"Investigate the missing caravan at {place}"
+"Find the sealed records beneath {place}"

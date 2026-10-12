@@ -7,7 +7,7 @@ Interior::Interior(uint32_t seed,bool quiet):peaceful(quiet) {
     int offset=int(hash(seed)%4);
     room(18,4+offset,11,17-offset); room(36,7,11,13);
     tiles[13*width+4]='<'; tiles[13*width+43]=peaceful?'b':'$';
-    tiles[12*width+7]='t'; tiles[10*width+23]='t'; tiles[16*width+40]='t';
+    tiles[12*width+7]='t'; tiles[10*width+23]='?'; tiles[16*width+40]='t';
     tiles[13*width+31]=peaceful?'t':'^';
 }
 void Interior::render(Scene& s) const {

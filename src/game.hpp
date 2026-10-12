@@ -6,8 +6,11 @@
 #include <tuple>
 #include <optional>
 #include "worldgen/atlas.hpp"
+#include "npc/population.hpp"
+#include "history/chronicle.hpp"
+#include "quests/quest.hpp"
 namespace er {
-enum class Screen { Title, Playing, Paused, Settings, Map, Create, Saves, SaveActions, DeleteSave };
+enum class Screen { Title, Playing, Paused, Settings, Map, Create, Saves, SaveActions, DeleteSave, Talk, Trade, Journal, Lore };
 struct BossFight { bool active=false,won=false; float elapsed=0,ring=3,breath=6,wing=11,adds=16; int phase=1; };
 class Game {
 public:
@@ -37,6 +40,14 @@ public:
     float transition=0;
     void interactPlace(); void leaveInterior(); void tickInterior(float dt);
     Atlas atlas;
+    Population population; Chronicle chronicle; std::vector<Quest> quests;
+    std::map<std::string,int> reputation;
+    NpcId talking{}; std::string dialogue; int loreIndex=0;
+    void saveLiving(std::ostream& out) const; bool loadLiving(std::istream& in);
+    void talkNearby(); Person speaker() const; void learnLore(int index); void offerQuest(const Person& person);
+    void socialInput(const Input& input); void renderSocial(Framebuffer& frame) const;
+    int buyPrice(const Person& person,const ItemDef& item) const; void tradeWith(const Person& person,int action);
+    bool socialScreen() const { return screen==Screen::Talk||screen==Screen::Trade||screen==Screen::Journal||screen==Screen::Lore; }
     Vec2 mapCenter{}; float mapStep=12; std::optional<PlaceId> mapSelected;
     void minimap(Framebuffer& frame) const;
     void drawMap(Framebuffer& frame,int x,int y,int width,int height,Vec2 center,float step,bool full) const;

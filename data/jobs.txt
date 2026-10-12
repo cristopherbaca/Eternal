@@ -1,0 +1,13 @@
+# job glyph faction
+"Farmer" f "Crown"
+"Smith" S "Artisans"
+"Guard" G "Crown"
+"Innkeeper" I "Wayfarers"
+"Hunter" H "Hunters"
+"Priest" P "Dawn Order"
+"Scholar" s "Mages College"
+"Merchant" M "Wayfarers"
+"Alchemist" A "Artisans"
+"Thief" t "Night Guild"
+"Noble" N "Crown"
+"Miner" m "Artisans"

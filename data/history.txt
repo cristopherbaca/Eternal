@@ -1,0 +1,7 @@
+# event template ({person}, {place}, {faction})
+"{person} founded {place} under the banner of {faction}."
+"The War of Broken Banners left {place} in ashes; {person} led the survivors."
+"A river plague reached {place}. {person} preserved the healing records."
+"{person} sealed a dragon relic beneath {place}, swearing service to {faction}."
+"The last dynasty fell at {place}. {person}'s descendants still dispute the throne."
+"The Dragon Age began when {person} saw fire rising beyond {place}."

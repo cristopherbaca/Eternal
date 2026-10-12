@@ -5,6 +5,10 @@ void Game::interactPlace() {
     if(!hero.alive||classMenu||inventoryMenu||helpMenu) return;
     if(world.interior) {
         auto& inside=*world.interior;
+        if(distance(hero.pos,{23,10})<3) {
+            learnLore(int(atlas.place(*interiorSite).key%chronicle.events.size()));
+            screen=Screen::Lore; menuIndex=loreIndex; message="You read an inscription; its location is marked on the atlas."; return;
+        }
         if(distance(hero.pos,inside.entrance)<4) { leaveInterior(); return; }
         if(distance(hero.pos,inside.chest)<4) {
             if(inside.peaceful) { hero.hp=hero.maxHp; hero.mp=hero.maxMp; time+=120; message="You rest by the hearth. Health and mana restored."; return; }

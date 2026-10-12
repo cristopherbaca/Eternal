@@ -1,0 +1,7 @@
+# personality greeting like dislike
+"Warm" "A friend on the road! Come, tell me your story." "shared meals" "cruelty"
+"Blunt" "Speak plainly. There is work to do." "honest work" "idle gossip"
+"Cautious" "Keep your voice down. These roads have ears." "quiet evenings" "strangers with drawn blades"
+"Curious" "What have you seen beyond our hills?" "old books" "closed minds"
+"Proud" "You stand in a place with a noble history." "fine craft" "broken promises"
+"Wry" "Another hero? Try not to break the furniture." "good jokes" "pompous nobles"

@@ -67,6 +67,9 @@ int main(int argc,char** argv) {
             er::Atlas atlas(uint32_t(seed)^er::hash(uint32_t(seed>>32))^mods.generation.seedSalt,dataPath);
             std::cout<<"World "<<seed<<" / use --position X Y --demo to inspect a location\n";
             for(int y=-2;y<=2;++y) for(int x=-2;x<=2;++x) { auto p=atlas.place({x,y}); std::cout<<p.name<<" | "<<p.pos.x<<", "<<p.pos.y<<" | "<<atlas.types[size_t(p.type)].purpose<<'\n'; }
+            er::Population people(dataPath); er::Chronicle history(atlas,people,dataPath);
+            for(size_t i=0;i<history.events.size();++i) std::cout<<history.account(int(i))<<'\n';
+            for(int y=-2;y<=2;++y) for(int x=-2;x<=2;++x) { auto site=atlas.place({x,y}); if(atlas.types[size_t(site.type)].inhabited) for(int i=0;i<12;++i) { auto p=people.person(site,i); std::cout<<site.name<<" | "<<p.name<<" | "<<people.jobs[size_t(p.job)].name<<" | "<<people.traits[size_t(p.trait)].name<<'\n'; } }
             return 0;
         }
         if(listMods) {

@@ -42,6 +42,7 @@ void Game::setCompanions(bool enabled) {
     }
 }
 void Game::menuInput(const Input& input) {
+    if(socialScreen()) { socialInput(input); return; }
     std::string keys=input.keys;
     if(input.click) {
         int cols=uiWidth?uiWidth:camera.width,rows=uiHeight?uiHeight:camera.height;

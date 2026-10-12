@@ -21,6 +21,8 @@ void Game::drawMap(Framebuffer& f,int x,int y,int width,int height,Vec2 center,f
     }
     for(auto id:atlas.known) { auto p=atlas.place(id); mark(p.pos,atlas.types[size_t(p.type)].glyph,{250,214,128}); }
     if(!full) for(const auto& e:mobs) if(e.alive&&distance(e.pos,hero.pos)<38) mark(e.pos,U'!',{244,107,103});
+    for(const auto& q:quests) if(!q.rewarded) mark(atlas.place(q.target).pos,U'?',{151,220,250});
+    if(!full) for(const auto& p:population.nearby) if(distance(p.pos,hero.pos)<45) mark(p.pos,U'n',{135,211,168});
     if(mapSelected) mark(atlas.place(*mapSelected).pos,U'X',{140,232,241});
     mark(hero.pos,U'@',{246,248,255});
 }
@@ -48,6 +50,7 @@ void Game::minimap(Framebuffer& f) const {
         int d=int(distance(closest->pos,hero.pos));
         std::string label=closest->name+" "+std::to_string(d)+"m";
         f.text(x,y+h,label.substr(0,size_t(w)),{220,196,145});
+        f.text(x,y+h+1,std::to_string(int(worldHour(time)))+":00 / "+weatherName(weatherAt(world.terrainSeed,time)),muted);
     }
 }
 }

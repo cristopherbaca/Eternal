@@ -7,8 +7,8 @@ Constraints: preserve the existing renderer, combat, class definitions, HUD/menu
 ## Phases
 1. **Complete (first playable slice)** — deterministic named points of interest, landmark silhouettes, connected roads/clearings, discovery/fog, minimap, pannable world map, debug location listing, save migration.
 2. **Partially complete** — enterable buildings/dungeons, bounded local simulation, day/night/weather, ambient animals.
-3. **Next / starting** — generated NPC identities/schedules, dialogue, trade/services; structured history/books and factions.
-4. **Pending** — quests and a playable town → dungeon → reward loop, quest/lore log and persistent state.
+3. **Complete (vertical slice)** — generated NPC identities/schedules, dialogue, trade/services; structured history/books and factions.
+4. **Partially complete** — quests and a playable town → dungeon → reward loop, quest/lore log and persistent state.
 5. **Pending** — broader crime, skills/perks, crafting, random equipment affixes and additional quest templates. These are not implemented by the existing game.
 
 ## Verification / running
@@ -33,3 +33,12 @@ Constraints: preserve the existing renderer, combat, class definitions, HUD/menu
 - 174 checks pass, including connected floor plans, peaceful/hostile entry, guarded and non-repeatable loot, exit restoration and saving/loading inside a cleared dungeon.
 - Still partial: interiors use a shared family of connected layouts; furniture has no physics. Day/night/weather/wildlife and richer per-type architecture remain. Next: clock-driven population, dialogue/trading, and seeded lore/quests as a playable vertical slice.
 - Budget re-check: usage/context status remains unavailable; remaining allowance unknown.
+
+## Phase 3 result: people, lore and dungeon work
+- Added data tables for names/cultures, twelve jobs/factions, personalities/dialogue, 24 structured historical events and quest titles. Every inhabited site deterministically generates twelve identities; only residents of nine nearby sites are simulated (maximum 108). Far residents use schedule destinations on arrival.
+- Y talks to nearby NPCs; topics include personality, rumors tied to real locations, kin/friends, dungeon work, trade, rest and hiring. Merchants/smiths/alchemists/innkeepers buy/sell with persistent gold; hired companions reuse existing party AI. J opens quests, L learned lore. F at ? in interiors reads an inscription and reveals the referenced historical place.
+- A repeatable giver → marked hostile site → guarded chest → giver reward loop works. Rewards affect faction reputation. The main journal follows a scholar's historical relic lead, then the existing Dragon encounter. All current side-quest titles use this clear-and-recover objective; escort/rescue/stealth/etc. are not implemented.
+- Save v4 persists generated history text, learned lore, NPC balances/recruitment/current nearby positions, quests and reputation, and loads v1–v3. `--world-report` now lists history and residents as well as sites.
+- 189 checks pass, including NPC identity/schedules, varied histories, interaction, the full dungeon/reward loop, repeat work, trade and living-world persistence.
+- Limits: social relationships are generated references, not autonomous relationship simulation. Shops have renewable generated stock; inn/service actions are lightweight. No crime/jail, perk tree, crafting or random-affix items yet. Weather currently influences schedules but is not visually rendered. These remain explicit next pieces.
+- Budget re-check: no status API is exposed; remaining allowance unknown.

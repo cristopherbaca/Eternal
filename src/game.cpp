@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cmath>
 namespace er {
-Game::Game(uint64_t seed,const std::filesystem::path& dataPath,const ModSet& mods):sourceData(dataPath),sourceMods(mods),activeMods(mods.names),atlas(uint32_t(seed)^hash(uint32_t(seed>>32))^mods.generation.seedSalt,dataPath),data(dataPath,mods.directories),world(seed,mods.generation) {
+Game::Game(uint64_t seed,const std::filesystem::path& dataPath,const ModSet& mods):sourceData(dataPath),sourceMods(mods),activeMods(mods.names),atlas(uint32_t(seed)^hash(uint32_t(seed>>32))^mods.generation.seedSalt,dataPath),population(dataPath),chronicle(atlas,population,dataPath),data(dataPath,mods.directories),world(seed,mods.generation) {
     data.applyClass(hero,Role::Mage);
     dragon.id=500; dragon.kind=Kind::Boss; dragon.name="Dragon"; dragon.pos=dragon.home={30,-30}; dragon.hp=dragon.maxHp=data.boss.hp; dragon.armor=data.boss.armor; dragon.power=data.boss.power; dragon.speed=data.boss.speed;
     discovered[0]=true; atlas.discover(hero.pos);
@@ -86,6 +86,10 @@ void Game::input(const Input& in) {
         screen=Screen::Paused; menuIndex=0; velocity={}; casts.clear(); return;
     }
     if(in.keys.find('m')!=std::string::npos&&!world.interior) { screen=Screen::Map; mapCenter=hero.pos; returnScreen=Screen::Playing; velocity={}; casts.clear(); return; }
+    if(!inventoryMenu&&!classMenu&&!helpMenu) {
+        if(in.keys.find('y')!=std::string::npos) { talkNearby(); return; }
+        if(in.keys.find('j')!=std::string::npos||in.keys.find('l')!=std::string::npos) { screen=in.keys.find('l')!=std::string::npos?Screen::Lore:Screen::Journal; menuIndex=0; velocity={}; casts.clear(); dialogue.clear(); return; }
+    }
     if(in.heldMovement) { velocity={}; movementTime=0; }
     Vec2 direction{};
     for(char k:in.keys+in.movementKeys) {
@@ -147,7 +151,9 @@ void Game::tick(float dt) {
         discovered[i]=true; awardXP(150); message=std::string("Discovered ")+landmarks[i].name+" +150 XP";
     }
     }
-    time+=dt; movementTime-=dt; if(movementTime<=0) velocity={};
+    time+=dt;
+    if(!world.interior) population.tick(atlas,world,time,dt,weatherAt(world.terrainSeed,time)!=0);
+    movementTime-=dt; if(movementTime<=0) velocity={};
     if(hero.alive) {
         hero.pos=world.move(hero.pos,velocity*dt*(world.water(hero.pos)?.55f:1.f)*(hero.slow>0?.35f:1.f));
     }
@@ -179,7 +185,7 @@ void Game::render(Framebuffer& f,float ms,Framebuffer* interface) {
         else renderUI(f,ms);
         return;
     }
-    scene.begin(camera); world.render(scene,time); if(!world.interior) { atlas.focus(hero.pos); atlas.render(scene,time); }
+    scene.begin(camera); world.render(scene,time); if(!world.interior) { atlas.focus(hero.pos); atlas.render(scene,time); population.render(scene,time); }
     for(const auto& e:party) if(e.alive) drawCharacter(scene,e.pos,e.color,time,length(e.velocity)>0,int(e.role));
     for(const auto& e:mobs) if(e.alive) {
         if(e.archetype==0) drawSkeleton(scene,e.pos,mix(e.color,{237,128,104},.55f),time); else drawCharacter(scene,e.pos,mix(e.color,{237,128,104},.55f),time,length(e.velocity)>0,int(e.role));
@@ -194,7 +200,7 @@ void Game::render(Framebuffer& f,float ms,Framebuffer* interface) {
     for(const auto& item:loot) { Vec2 p=camera.project(item.pos); if(p.y>2&&p.y<f.height-5) f.text(int(p.x)-4,int(p.y)-1,data.items[size_t(item.item)].name,{151,139,111}); }
     if(!world.interior) nameLabel(f,camera,dragon,dragon.id==hero.target);
     }
-    if(!world.interior) atlas.labels(f,camera,hero.pos);
+    if(!world.interior) { atlas.labels(f,camera,hero.pos); population.labels(f,camera,hero.pos,aim); }
     if(transition>0) for(auto& cell:f.cells) cell.fg=cell.fg*(1-transition/.25f);
     floatingLabels(f,camera,texts);
     Vec2 cursor=camera.project(aim); f.put(int(cursor.x),int(cursor.y),U'+',white);
@@ -219,7 +225,7 @@ void Game::renderUI(Framebuffer& f,float ms) {
         if(f.width>90) f.text(2+i*slotWidth,f.height-3,std::to_string(int(a.cost))+" MP",muted);
     }
     f.text(2,f.height-2,message.substr(0,size_t(std::max(0,f.width-4))),muted);
-    if(showHelp) f.text(2,f.height-1,"WASD move  F interact  1-6 cast  Tab target  C class  M map  Esc/P pause",{165,188,202});
+    if(showHelp) f.text(2,f.height-1,"WASD move  F enter  Y talk  J quests  L lore  1-6 cast  M map  Esc pause",{165,188,202});
     f.text(2,f.height-5,(interiorSite?atlas.place(*interiorSite).name:std::string(world.region(hero.pos)))+" | Lv "+std::to_string(hero.level)+" XP "+std::to_string(hero.xp)+"/"+std::to_string(100+hero.level*25)+(hero.testing?" | TEST POWER ON":""),{196,190,144});
     if(classMenu||helpMenu) {
         int w=std::min(66,f.width-4),x=(f.width-w)/2,y=std::max(2,f.height/2-7); box(f,x,y,w,14);
@@ -244,6 +250,7 @@ void Game::renderUI(Framebuffer& f,float ms) {
             f.text(x+2,y+9+i-start,(i==inventoryIndex?"> ":"  ")+item.name+(equipped?" [equipped]":"")+"  +"+std::to_string(int(item.power))+" power / +"+std::to_string(int(item.armor))+" armor",i==inventoryIndex?white:muted);
         }
     }
+    if(socialScreen()) { renderSocial(f); return; }
     if(screen!=Screen::Playing) { renderMenu(f); return; }
     if(!hero.alive) { int x=std::max(0,f.width/2-19),y=f.height/2; box(f,x,y,38,5); f.text(x+3,y+1,"You have fallen",{238,110,99}); f.text(x+3,y+3,"R: return to Ashenmere (-25g)"); }
 }
