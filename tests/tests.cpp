@@ -248,5 +248,19 @@ int main() { try {
     resumed.screen=Screen::DeleteSave; resumed.menuIndex=1; resumed.menuInput(confirm);
     check(!std::filesystem::exists(saveRoot/"slot-6.sav"),"explicit confirmation deletes selected world");
     std::filesystem::remove_all(saveRoot);
+    Atlas atlasA(42),atlasB(42),atlasC(43);
+    check(atlasA.place({2,-1}).name==atlasB.place({2,-1}).name&&atlasA.place({2,-1}).key!=atlasC.place({2,-1}).key,"seeded sites reproduce and vary across seeds");
+    check(distance(atlasA.place({0,0}).pos,{0,12})<60,"a settlement is reachable immediately after spawning");
+    World roads(42); auto startSite=atlasA.place({0,0}),nextSite=atlasA.place({1,0});
+    bool connected=true; for(int i=0;i<=40;++i) connected=connected&&roads.road(lerp(startSite.pos,nextSite.pos,i/40.f));
+    check(connected,"roads connect adjacent sites across generation seams");
+    check(atlasA.discover({0,12}).size()==1&&atlasA.discover({0,12}).empty(),"site discovery occurs once");
+    check(atlasA.seen({0,12})&&!atlasA.seen({900,900}),"fog separates explored from unknown terrain");
+    std::stringstream atlasSave; atlasA.save(atlasSave); Atlas atlasRestored(42);
+    check(atlasRestored.load(atlasSave)&&atlasRestored.known==atlasA.known&&atlasRestored.explored==atlasA.explored,"atlas discovery persists");
+    atlasA.focus({9000,-8000}); check(atlasA.nearby.size()==9,"site streaming stays bounded while exploring");
+    Game mapGame; mapGame.atlas.discover(mapGame.hero.pos); Framebuffer mapFrame(160,50); mapGame.renderUI(mapFrame,16);
+    bool playerMarker=false; for(int y=4;y<12;++y) for(int x=135;x<158;++x) playerMarker|=mapFrame.at(x,y).glyph==U'@';
+    check(playerMarker,"minimap marks player without replacing existing HUD");
     std::cout<<checks<<" checks passed: math, renderer, input, combat, AI, progression, boss, menus and deterministic replay\n";
 } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; } }

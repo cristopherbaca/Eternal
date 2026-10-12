@@ -4,6 +4,8 @@
 #include "entities/entity.hpp"
 #include "combat/combat.hpp"
 #include <tuple>
+#include <optional>
+#include "worldgen/atlas.hpp"
 namespace er {
 enum class Screen { Title, Playing, Paused, Settings, Map, Create, Saves, SaveActions, DeleteSave };
 struct BossFight { bool active=false,won=false; float elapsed=0,ring=3,breath=6,wing=11,adds=16; int phase=1; };
@@ -29,6 +31,10 @@ public:
     std::string seedText() const;
     bool frontEnd() const { return screen==Screen::Title||screen==Screen::Create||screen==Screen::Saves||screen==Screen::SaveActions||screen==Screen::DeleteSave||(screen==Screen::Settings&&returnScreen==Screen::Title); }
     std::vector<std::string> activeMods;
+    Atlas atlas;
+    Vec2 mapCenter{}; float mapStep=12; std::optional<PlaceId> mapSelected;
+    void minimap(Framebuffer& frame) const;
+    void drawMap(Framebuffer& frame,int x,int y,int width,int height,Vec2 center,float step,bool full) const;
     Data data; World world; Combat combat; Camera camera; Entity hero; std::vector<Entity> party,mobs; Entity dragon;
     std::vector<FloatingText> texts; Vec2 velocity{},aim{5,12}; float time=0; bool quit=false;
     bool classMenu=false,helpMenu=false; std::string message="Welcome to Ashenmere. C: class  H: help";

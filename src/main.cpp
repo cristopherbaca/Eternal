@@ -12,7 +12,7 @@
 
 int main(int argc,char** argv) {
     try {
-        bool headless=false,demo=false,native=false,normal=false,fpsExplicit=false,classExplicit=false,noMods=false,listMods=false,positionSet=false;
+        bool headless=false,demo=false,native=false,normal=false,fpsExplicit=false,classExplicit=false,noMods=false,listMods=false,positionSet=false,worldReport=false;
         er::Vec2 startPosition{};
         int frames=0,w=200,h=60,fps=60;
         uint64_t seed=42;
@@ -23,6 +23,7 @@ int main(int argc,char** argv) {
             auto value=[&]() -> std::string { if(i+1>=argc) throw std::runtime_error("Missing value for "+arg); return argv[++i]; };
             if(arg=="--headless"||arg=="--benchmark") headless=true;
             else if(arg=="--window") native=true;
+            else if(arg=="--world-report") worldReport=true;
             else if(arg=="--demo") demo=true;
             else if(arg=="--frames") frames=std::stoi(value());
             else if(arg=="--fps") { fps=std::stoi(value()); fpsExplicit=true; }
@@ -62,6 +63,12 @@ int main(int argc,char** argv) {
         if(positionSet&&(!std::isfinite(startPosition.x)||!std::isfinite(startPosition.y)||std::abs(startPosition.x)>999000||std::abs(startPosition.y)>999000))
             throw std::runtime_error("--position must be finite and within +/-999000 world units");
         auto mods=er::loadMods(modsPath,modIds,noMods);
+        if(worldReport) {
+            er::Atlas atlas(uint32_t(seed)^er::hash(uint32_t(seed>>32))^mods.generation.seedSalt,dataPath);
+            std::cout<<"World "<<seed<<" / use --position X Y --demo to inspect a location\n";
+            for(int y=-2;y<=2;++y) for(int x=-2;x<=2;++x) { auto p=atlas.place({x,y}); std::cout<<p.name<<" | "<<p.pos.x<<", "<<p.pos.y<<" | "<<atlas.types[size_t(p.type)].purpose<<'\n'; }
+            return 0;
+        }
         if(listMods) {
             if(mods.names.empty()) std::cout<<"No active mods\n";
             for(const auto& name:mods.names) std::cout<<name<<'\n';

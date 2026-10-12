@@ -49,8 +49,7 @@ void Game::menuInput(const Input& input) {
         int x=(cols-width)/2,y=(rows-height)/2;
         if(input.mouseX>=x+2&&input.mouseX<x+width-2) {
             int row=input.mouseY-y;
-            if(screen==Screen::Map&&row>=13&&row<=21&&(row-13)%2==0) keys+=char('1'+(row-13)/2);
-            else if(screen!=Screen::Map&&row>=5&&(row-5)%2==0) {
+            if(screen!=Screen::Map&&row>=5&&(row-5)%2==0) {
                 int visible=std::max(1,(height-7)/2),first=std::max(0,menuIndex-visible+1);
                 int selected=first+(row-5)/2,count=menuCount();
                 if(selected<count&&selected<first+visible) { editingField=false; menuIndex=selected; keys+='\r'; }
@@ -69,6 +68,18 @@ void Game::menuInput(const Input& input) {
         }
         if(k=='q') { quit=true; return; }
         if(screen==Screen::Map) {
+            if(k=='w'||k=='^') mapCenter.y-=mapStep*4;
+            if(k=='s'||k=='v') mapCenter.y+=mapStep*4;
+            if(k=='a'||k=='<') mapCenter.x-=mapStep*4;
+            if(k=='d'||k=='>') mapCenter.x+=mapStep*4;
+            if(k=='c') mapCenter=hero.pos;
+            if(k=='+'||k=='=') mapStep=std::max(4.f,mapStep/2);
+            if(k=='-') mapStep=std::min(128.f,mapStep*2);
+            mapCenter.x=clamp(mapCenter.x,-999000.f,999000.f); mapCenter.y=clamp(mapCenter.y,-999000.f,999000.f);
+            if(k=='\t'&&!atlas.known.empty()) { auto it=mapSelected?atlas.known.upper_bound(*mapSelected):atlas.known.begin(); if(it==atlas.known.end()) it=atlas.known.begin(); mapSelected=*it; mapCenter=atlas.place(*it).pos; }
+            if((k=='\r'||k=='\n')&&mapSelected&&atlas.known.count(*mapSelected)&&hero.alive&&(!fight.active||hero.testing)) {
+                hero.pos=atlas.place(*mapSelected).pos+Vec2{0,5}; camera.center=hero.pos; world.focus(hero.pos); atlas.focus(hero.pos); velocity={}; screen=Screen::Playing; return;
+            }
             if(k==27||k=='m'||k=='p') { screen=returnScreen; menuIndex=0; return; }
             if(k=='t'&&hero.testing) {
                 Vec2 destination=hero.pos+Vec2{512,256};
@@ -161,7 +172,7 @@ void Game::menuInput(const Input& input) {
         } else if(activate&&screen==Screen::Paused) {
             if(menuIndex==0) screen=Screen::Playing;
             else if(menuIndex==1) { returnScreen=screen; screen=Screen::Settings; }
-            else if(menuIndex==2) { returnScreen=screen; screen=Screen::Map; }
+            else if(menuIndex==2) { returnScreen=screen; screen=Screen::Map; mapCenter=hero.pos; }
             else if(menuIndex==3) { saveAdventure(); return; }
             else if(menuIndex==4) { if(!saveAdventure()) return; screen=Screen::Title; refreshSaves(); }
             else { if(!saveAdventure()) return; quit=true; }
@@ -239,27 +250,12 @@ void Game::renderMenu(Framebuffer& frame) {
         line(24,"A/D or Left/Right changes a setting; Enter toggles.",muted);
         line(25,"Window detail applies to Metal; terminal size sets terminal detail.",muted);
     } else if(screen==Screen::Map) {
-        line(2,"PROCEDURAL WORLD - local map around you",{242,210,139});
-        int mapW=std::min(36,width-6),mapH=8;
-        for(int row=0;row<mapH;++row) for(int col=0;col<mapW;++col) {
-            Vec2 p=hero.pos+Vec2{-256+512.f*col/mapW,-256+512.f*row/mapH};
-            char glyph=world.water(p)?'~':world.road(p)?':':'.';
-            frame.put(x+2+col,y+4+row,glyph,{75,115,109});
-        }
-        auto mark=[&](Vec2 p,char glyph,Color color) {
-            if(std::abs(p.x-hero.pos.x)>255||std::abs(p.y-hero.pos.y)>255) return;
-            int col=clamp(int((p.x-hero.pos.x+256)/512*mapW),0,mapW-1),row=clamp(int((p.y-hero.pos.y+256)/512*mapH),0,mapH-1);
-            frame.put(x+2+col,y+4+row,glyph,color);
-        };
-        for(size_t i=0;i<landmarks.size();++i) {
-            mark(landmarks[i].pos,char('1'+i),{225,183,109});
-            line(13+int(i)*2,std::to_string(i+1)+" "+landmarks[i].name+(discovered[i]?" [discovered]":" [unexplored]"));
-        }
-        mark(hero.pos,'@',white);
-        line(12,"Seed "+seedText()+" | Chunks "+std::to_string(world.loadedChunkCount())+" | Active enemies "+std::to_string(mobs.size()),muted);
-        line(23,"@ You: "+std::to_string(int(hero.pos.x))+", "+std::to_string(int(hero.pos.y))+" | "+world.region(hero.pos));
-        line(24,hero.testing?"1-5: home landmarks | T: jump to new wilderness":"1-5: travel to discovered landmarks outside boss combat",muted);
-        line(25,message,muted);
+        line(2,"WORLD ATLAS / "+seedText(),{242,210,139});
+        drawMap(frame,x+2,y+4,width-4,std::max(1,height-12),mapCenter,mapStep,true);
+        line(height-7,mapSelected?atlas.place(*mapSelected).name+" / Enter: travel":"Tab: select discovered place / Enter: fast travel",{221,199,145});
+        line(height-6,"WASD/arrows pan | +/- zoom | C center | blank = unexplored",muted);
+        line(height-5,"@ you V village T town C capital D crypt O cave ! camp",muted);
+        line(height-4,"Discovered "+std::to_string(atlas.known.size())+" places | God mode reveals terrain",muted);
     }
     if(!menuNotice.empty()) line(height-3,menuNotice,{243,184,122});
     line(height-2,screen==Screen::Map?"M / Esc: back":"W/S: select | Enter or click: choose | Esc/P: back",{128,162,174});

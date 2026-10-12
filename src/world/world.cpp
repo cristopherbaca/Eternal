@@ -1,4 +1,5 @@
 #include "world/world.hpp"
+#include "worldgen/atlas.hpp"
 namespace er {
 void World::tick(float dt) {
     for(auto& b:blades) { b.velocity+=(b.bend*-22-b.velocity*7)*dt; b.bend+=b.velocity*dt; }
@@ -33,7 +34,7 @@ bool World::treeAt(int x,int y,Tree& tree) const {
     if(config.treeDensity<=0||noise(x,y,terrainSeed+8)>config.treeDensity) return false;
     Vec2 p{float(x*8)+noise(x,y,terrainSeed)*6,float(y*8)+noise(y,x,terrainSeed+1)*6};
     for(const auto& landmark:landmarks) if(distance(p,landmark.pos)<7) return false;
-    if(water(p)||road(p)||(std::abs(p.x)<23&&p.y>-24&&p.y<4)||distance(p,{0,12})<9||distance(p,{30,-25})<16) return false;
+    if(placeClearing(p,terrainSeed)||water(p)||road(p)||(std::abs(p.x)<23&&p.y>-24&&p.y<4)||distance(p,{0,12})<9||distance(p,{30,-25})<16) return false;
     tree={p,6+noise(x,y,terrainSeed+3)*7,2+noise(y,x,terrainSeed+9)*2,biome(p)==1||noise(x,y,terrainSeed+4)>.6f};
     return true;
 }
@@ -72,12 +73,14 @@ void World::rebuildShadows() {
     }
 }
 bool World::road(Vec2 p) const {
+    if(connectingRoad(p,terrainSeed)) return true;
     if(std::abs(p.x-p.y*.55f+8)<2.8f||std::abs(p.y+3+p.x*.14f)<1.6f) return true;
     // Continuous, gently winding routes repeat as corridors, not terrain tiles.
     float lane=p.x+12*std::sin(p.y*.009f);
     return std::abs(lane-std::round(lane/256)*256)<2.2f;
 }
 bool World::water(Vec2 p) const {
+    if(placeClearing(p,terrainSeed)) return false;
     float edge=std::max(std::abs(p.x),std::abs(p.y));
     if(edge<180) return p.y>shore(p.x)&&p.y<85+5*std::sin(p.x*.07f)&&std::abs(p.x)<72;
     if(road(p)) return false;

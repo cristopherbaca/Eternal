@@ -5,10 +5,10 @@
 #include <algorithm>
 #include <cmath>
 namespace er {
-Game::Game(uint64_t seed,const std::filesystem::path& dataPath,const ModSet& mods):sourceData(dataPath),sourceMods(mods),activeMods(mods.names),data(dataPath,mods.directories),world(seed,mods.generation) {
+Game::Game(uint64_t seed,const std::filesystem::path& dataPath,const ModSet& mods):sourceData(dataPath),sourceMods(mods),activeMods(mods.names),atlas(uint32_t(seed)^hash(uint32_t(seed>>32))^mods.generation.seedSalt,dataPath),data(dataPath,mods.directories),world(seed,mods.generation) {
     data.applyClass(hero,Role::Mage);
     dragon.id=500; dragon.kind=Kind::Boss; dragon.name="Dragon"; dragon.pos=dragon.home={30,-30}; dragon.hp=dragon.maxHp=data.boss.hp; dragon.armor=data.boss.armor; dragon.power=data.boss.power; dragon.speed=data.boss.speed;
-    discovered[0]=true;
+    discovered[0]=true; atlas.discover(hero.pos);
     mobs.reserve(128);
     streamEnemies();
 }
@@ -84,7 +84,7 @@ void Game::input(const Input& in) {
     if(in.keys.find(char(27))!=std::string::npos||in.keys.find('p')!=std::string::npos) {
         screen=Screen::Paused; menuIndex=0; velocity={}; casts.clear(); return;
     }
-    if(in.keys.find('m')!=std::string::npos) { screen=Screen::Map; returnScreen=Screen::Playing; velocity={}; casts.clear(); return; }
+    if(in.keys.find('m')!=std::string::npos) { screen=Screen::Map; mapCenter=hero.pos; returnScreen=Screen::Playing; velocity={}; casts.clear(); return; }
     if(in.heldMovement) { velocity={}; movementTime=0; }
     Vec2 direction{};
     for(char k:in.keys+in.movementKeys) {
@@ -136,6 +136,7 @@ void Game::tick(float dt) {
     saveTimer+=dt;
     if(activeSave>=0&&saveTimer>=30) { saveTimer=0; if(!saveAdventure()) message=menuNotice; }
     world.focus(hero.pos);
+    for(const auto& p:atlas.discover(hero.pos)) { awardXP(35); message="Discovered "+p.name+": "+atlas.types[size_t(p.type)].purpose; }
     spawnTimer-=dt;
     if(spawnTimer<=0||World::chunkAt(hero.pos)!=enemyCenter) { streamEnemies(); spawnTimer=1; }
     for(size_t i=0;i<landmarks.size();++i) if(!discovered[i]&&distance(hero.pos,landmarks[i].pos)<16) {
@@ -172,7 +173,7 @@ void Game::render(Framebuffer& f,float ms,Framebuffer* interface) {
         else renderUI(f,ms);
         return;
     }
-    scene.begin(camera); world.render(scene,time);
+    scene.begin(camera); world.render(scene,time); atlas.focus(hero.pos); atlas.render(scene,time);
     for(const auto& e:party) if(e.alive) drawCharacter(scene,e.pos,e.color,time,length(e.velocity)>0,int(e.role));
     for(const auto& e:mobs) if(e.alive) {
         if(e.archetype==0) drawSkeleton(scene,e.pos,mix(e.color,{237,128,104},.55f),time); else drawCharacter(scene,e.pos,mix(e.color,{237,128,104},.55f),time,length(e.velocity)>0,int(e.role));
@@ -187,6 +188,7 @@ void Game::render(Framebuffer& f,float ms,Framebuffer* interface) {
     for(const auto& item:loot) { Vec2 p=camera.project(item.pos); if(p.y>2&&p.y<f.height-5) f.text(int(p.x)-4,int(p.y)-1,data.items[size_t(item.item)].name,{151,139,111}); }
     nameLabel(f,camera,dragon,dragon.id==hero.target);
     }
+    atlas.labels(f,camera,hero.pos);
     floatingLabels(f,camera,texts);
     Vec2 cursor=camera.project(aim); f.put(int(cursor.x),int(cursor.y),U'+',white);
     if(interface) {
@@ -200,6 +202,7 @@ void Game::renderUI(Framebuffer& f,float ms) {
     uiWidth=f.width; uiHeight=f.height;
     if(frontEnd()) { renderMenu(f); return; }
     hud(f,hero,party,fight.active?&dragon:nullptr,ms);
+    minimap(f);
     for(int y=f.height-5;y<f.height;++y) for(int x=0;x<f.width;++x) f.put(x,y,U' ');
     int slotWidth=std::max(1,(f.width-4)/6);
     for(int i=0;i<6;++i) {
