@@ -326,5 +326,44 @@ int main() { try {
     Framebuffer daylight(120,40),nightlight(120,40); for(auto& c:daylight.cells) c={U'.',white,background}; nightlight.cells=daylight.cells;
     Camera climateCamera; wildlife.atmosphere(daylight,climateCamera,42,0); wildlife.atmosphere(nightlight,climateCamera,42,45*15);
     check(daylight.cells!=nightlight.cells,"day and night have visibly different atmosphere");
+    {
+    Game crafter; crafter.materials={3,3,2}; crafter.hero.gold=100;
+    crafter.craft(0); check(crafter.hero.inventory.back()==6&&crafter.materials[0]==0&&crafter.hero.gold==90,"smithing consumes resources and creates a usable weapon");
+    size_t craftedCount=crafter.hero.inventory.size(); crafter.craft(0);
+    check(crafter.hero.inventory.size()==craftedCount&&crafter.hero.gold==90,"crafting rejects insufficient materials without charging");
+    crafter.hero.hp=1; crafter.craft(1); check(crafter.hero.hp==51&&crafter.materials[1]==0,"alchemy consumes herbs to restore health");
+    auto priorMaterials=crafter.materials; crafter.gather(); auto gatheredMaterials=crafter.materials; crafter.gather();
+    check(crafter.materials==gatheredMaterials&&priorMaterials!=gatheredMaterials,"gathering limited to once per chunk per day");
+    crafter.mastery[size_t(crafter.hero.role)]=20; crafter.screen=Screen::Progress; crafter.menuIndex=1;
+    float untalentedPower=crafter.hero.power; Input learn; learn.keys="\r"; crafter.progressInput(learn);
+    check(crafter.hero.power==untalentedPower+2&&crafter.perkPoints()==0,"mastery earns spendable class talent points");
+    auto trainedRole=crafter.hero.role; crafter.applyPlayerClass(Role::Warrior); crafter.applyPlayerClass(trainedRole);
+    check(crafter.hero.power==untalentedPower+2,"class switching retains that class's talents without stacking");
+    crafter.hero.inventory.assign(20,1); check(!crafter.canCarry(0),"carrying capacity prevents overloading with more items");
+    Game criminal; criminal.population.tick(criminal.atlas,criminal.world,0,0,false);
+    auto victim=criminal.population.person(criminal.atlas.place({0,0}),1);
+    criminal.hero.pos=criminal.population.scheduled(victim,criminal.atlas,8,false);
+    criminal.stealFrom(victim); check(criminal.bounties[victim.home]==25,"witnessed theft creates a local bounty");
+    criminal.tickSociety(1);
+    check(std::any_of(criminal.mobs.begin(),criminal.mobs.end(),[](const Entity& e){return e.name=="Pursuing Guard";}),"nearby guard pursues a wanted player");
+    auto guard=criminal.population.person(criminal.atlas.place({0,0}),2); int beforeFine=criminal.hero.gold;
+    criminal.settleBounty(guard); check(criminal.bounties[victim.home]==0&&criminal.hero.gold==beforeFine-25,"fine payment clears local bounty");
+    criminal.bounties[victim.home]=25; criminal.hero.gold=0; float beforeJail=criminal.time; criminal.settleBounty(guard);
+    check(criminal.time==beforeJail+270&&criminal.bounties[victim.home]==0,"unpayable fine advances time through a jail sentence");
+    auto progressionRoot=std::filesystem::temp_directory_path()/("er-progress-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    crafter.saveDirectory=progressionRoot; crafter.activeSave=0; crafter.bounties[{0,0}]=25;
+    check(crafter.saveAdventure(),"progression state saved");
+    Game trained; trained.saveDirectory=progressionRoot;
+    check(trained.loadAdventure(0)&&trained.talents==crafter.talents&&trained.materials==crafter.materials&&trained.harvested==crafter.harvested&&trained.bounties==crafter.bounties,"talents materials harvest and crime state persist");
+    Game legacyFixture; legacyFixture.saveDirectory=progressionRoot; legacyFixture.activeSave=1; legacyFixture.saveAdventure();
+    std::ifstream legacyIn(progressionRoot/"slot-2.sav"); std::stringstream legacyBuffer; legacyBuffer<<legacyIn.rdbuf(); std::string latestSave=legacyBuffer.str();
+    const char* sections[]={"\nATLAS", "\nINTERIORS", "\nLIVING", "\nPROGRESSION"};
+    for(int version=1;version<=4;++version) {
+        std::string old=latestSave; old[8]=char('0'+version); old.resize(old.find(sections[version-1]));
+        { std::ofstream file(progressionRoot/"slot-3.sav"); file<<old<<'\n'; }
+        Game legacyReader; legacyReader.saveDirectory=progressionRoot; check(legacyReader.loadAdventure(2),"previous save format remains readable");
+    }
+    std::filesystem::remove_all(progressionRoot);
+    }
     std::cout<<checks<<" checks passed: math, renderer, input, combat, AI, progression, boss, menus and deterministic replay\n";
 } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; } }

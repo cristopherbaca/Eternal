@@ -47,7 +47,7 @@ void Game::streamEnemies() {
 }
 void Game::collectLoot() {
     for(auto it=loot.begin();it!=loot.end();) {
-        if(distance(hero.pos,it->pos)<4&&hero.inventory.size()<24) { hero.inventory.push_back(it->item); hero.gold+=it->gold; message="Collected "+data.items[size_t(it->item)].name+" +"+std::to_string(it->gold)+"g"; it=loot.erase(it); }
+        if(distance(hero.pos,it->pos)<4&&canCarry(it->item)) { hero.inventory.push_back(it->item); hero.gold+=it->gold; message="Collected "+data.items[size_t(it->item)].name+" +"+std::to_string(it->gold)+"g"; it=loot.erase(it); }
         else ++it;
     }
 }
@@ -87,6 +87,7 @@ void Game::input(const Input& in) {
     }
     if(in.keys.find('m')!=std::string::npos&&!world.interior) { screen=Screen::Map; mapCenter=hero.pos; returnScreen=Screen::Playing; velocity={}; casts.clear(); return; }
     if(!inventoryMenu&&!classMenu&&!helpMenu) {
+        if(in.keys.find('u')!=std::string::npos) { screen=Screen::Progress; menuIndex=0; velocity={}; casts.clear(); dialogue.clear(); return; }
         if(in.keys.find('y')!=std::string::npos) { talkNearby(); return; }
         if(in.keys.find('j')!=std::string::npos||in.keys.find('l')!=std::string::npos) { screen=in.keys.find('l')!=std::string::npos?Screen::Lore:Screen::Journal; menuIndex=0; velocity={}; casts.clear(); dialogue.clear(); return; }
     }
@@ -98,6 +99,7 @@ void Game::input(const Input& in) {
         if(k=='i') { inventoryMenu=!inventoryMenu; continue; }
         if(k=='r') respawn();
         if(k=='e') collectLoot();
+        if(k=='g') gather();
         if(k=='f') { interactPlace(); continue; }
         if(inventoryMenu) { if(k=='j'||k=='v') ++inventoryIndex; if(k=='k'||k=='^') --inventoryIndex; inventoryIndex=clamp(inventoryIndex,0,std::max(0,int(hero.inventory.size())-1)); if(k=='\r'||k=='\n') equipSelected(); continue; }
         if(k=='c') classMenu=!classMenu;
@@ -105,7 +107,7 @@ void Game::input(const Input& in) {
         if(k>='1'&&k<='6') {
             if(classMenu&&k<='5') {
                 if(!hero.testing&&(hero.hurtTime>0||!hero.alive||fight.active)) { message="Change class while alive and out of combat"; continue; }
-                data.applyClass(hero,Role(k-'1'));
+                applyPlayerClass(Role(k-'1'));
                 for(int item:hero.equipment) if(item>=0) { hero.armor+=data.items[size_t(item)].armor; hero.power+=data.items[size_t(item)].power; }
                 classMenu=false; message=std::string("Class: ")+roleName(hero.role);
             }
@@ -160,9 +162,9 @@ void Game::tick(float dt) {
     }
     hero.velocity=velocity;
     if(!world.interior) tickDragon(*this,dt);
-    tickInterior(dt);
+    tickInterior(dt); tickSociety(dt);
     auto es=entities(); combat.tick(dt,es,world,texts);
-    for(int slot:casts) { auto error=combat.cast(hero,slot,aim,hero.target,es,data,world,texts); if(!error.empty()) message=error; }
+    for(int slot:casts) { auto error=combat.cast(hero,slot,aim,hero.target,es,data,world,texts); if(!error.empty()) message=error; else mastery[size_t(hero.role)]=std::min(100000,mastery[size_t(hero.role)]+1); }
     casts.clear();
     if(companions) tickParty(*this,dt); tickMobs(*this,dt); rewards();
     world.tick(dt); world.pushGrass(hero.pos,2.8f,dt*30);
@@ -250,6 +252,7 @@ void Game::renderUI(Framebuffer& f,float ms) {
             int id=hero.equipment[size_t(slot)];
             f.text(x+2,y+5+slot,std::string(slots[slot])+": "+(id<0?"None":data.items[size_t(id)].name),{155,200,212});
         }
+        f.text(x+2,y+8,"Weight "+std::to_string(carryWeight())+"/60 | U: mastery/crafting",muted);
         if(hero.inventory.empty()) f.text(x+2,y+9,"Defeat enemies; press E near their loot.",muted);
         int start=std::max(0,inventoryIndex-(h-13));
         for(int i=start;i<int(hero.inventory.size())&&i-start<h-11;++i) {
@@ -257,6 +260,7 @@ void Game::renderUI(Framebuffer& f,float ms) {
             f.text(x+2,y+9+i-start,(i==inventoryIndex?"> ":"  ")+item.name+(equipped?" [equipped]":"")+"  +"+std::to_string(int(item.power))+" power / +"+std::to_string(int(item.armor))+" armor",i==inventoryIndex?white:muted);
         }
     }
+    if(screen==Screen::Progress) { renderProgress(f); return; }
     if(socialScreen()) { renderSocial(f); return; }
     if(screen!=Screen::Playing) { renderMenu(f); return; }
     if(!hero.alive) { int x=std::max(0,f.width/2-19),y=f.height/2; box(f,x,y,38,5); f.text(x+3,y+1,"You have fallen",{238,110,99}); f.text(x+3,y+3,"R: return to Ashenmere (-25g)"); }

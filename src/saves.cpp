@@ -47,7 +47,7 @@ void Game::refreshSaves() {
         if(!std::filesystem::exists(path,error)) continue;
         saves[size_t(i)].exists=true;
         std::ifstream in(path); std::string magic,name,player; int version; uint64_t seed;
-        if(in>>magic>>version>>std::quoted(name)>>seed>>std::quoted(player); in&&magic=="ETERNAL"&&(version>=1&&version<=4))
+        if(in>>magic>>version>>std::quoted(name)>>seed>>std::quoted(player); in&&magic=="ETERNAL"&&(version>=1&&version<=5))
             saves[size_t(i)].label=name+" / "+player;
         else saves[size_t(i)].label="Unreadable save (can be deleted)";
     }
@@ -68,7 +68,7 @@ bool Game::createAdventure() {
     if(slot==8) { menuNotice="All 8 slots are full. Delete a save first."; return false; }
     Game fresh(std::stoull(draftSeed),sourceData,sourceMods);
     fresh.saveDirectory=saveDirectory; fresh.activeSave=slot; fresh.worldName=draftWorld;
-    fresh.hero.name=draftName; fresh.data.applyClass(fresh.hero,draftRole); fresh.hero.gold=0;
+    fresh.hero.name=draftName; fresh.applyPlayerClass(draftRole); fresh.hero.gold=0;
     fresh.hero.inventory.clear(); fresh.hero.equipment.fill(-1); fresh.setTesting(draftGod);
     fresh.discovered.fill(false); fresh.discovered[0]=true; fresh.hero.pos={0,12}; fresh.camera.center=fresh.hero.pos;
     fresh.detail=detail; fresh.presentationFps=presentationFps; fresh.camera.zoom=camera.zoom;
@@ -83,7 +83,7 @@ bool Game::saveAdventure() {
         std::filesystem::create_directories(saveDirectory);
         auto path=slotPath(saveDirectory,activeSave),temp=path; temp+=".tmp";
         std::ofstream out(temp,std::ios::trunc); out<<std::setprecision(9);
-        out<<"ETERNAL 4 "<<std::quoted(worldName)<<' '<<world.seed<<' '<<std::quoted(hero.name)<<'\n';
+        out<<"ETERNAL 5 "<<std::quoted(worldName)<<' '<<world.seed<<' '<<std::quoted(hero.name)<<'\n';
         out<<activeMods.size()<<' '; for(const auto& mod:activeMods) out<<std::quoted(mod)<<' '; out<<'\n';
         out<<data.items.size()<<' '; for(const auto& item:data.items) out<<std::quoted(item.name)<<' '; out<<'\n';
         const auto& gen=world.config;
@@ -114,7 +114,7 @@ bool Game::loadAdventure(int slot) {
     try {
         std::ifstream in(slotPath(saveDirectory,slot)); std::string magic,title,name; int version; uint64_t seed;
         auto require=[&](bool condition) { if(!condition) throw std::runtime_error("Invalid or incompatible save"); };
-        require(bool(in>>magic>>version>>std::quoted(title)>>seed>>std::quoted(name))&&magic=="ETERNAL"&&(version>=1&&version<=4)&&seed<1000000000000ULL&&title.size()<=24);
+        require(bool(in>>magic>>version>>std::quoted(title)>>seed>>std::quoted(name))&&magic=="ETERNAL"&&(version>=1&&version<=5)&&seed<1000000000000ULL&&title.size()<=24);
         size_t count; require(bool(in>>count)&&count==activeMods.size());
         for(const auto& mod:activeMods) { std::string stored; require(bool(in>>std::quoted(stored))&&stored==mod); }
         require(bool(in>>count)&&count==data.items.size());
@@ -155,7 +155,7 @@ bool Game::loadAdventure(int slot) {
             require(bool(in>>count)&&count<=1000000);
             for(size_t i=0;i<count;++i) { int x,y; require(bool(in>>x>>y)&&std::abs(int64_t(x))<4000&&std::abs(int64_t(y))<4000); fresh.clearedPlaces.insert({x,y}); }
         }
-        if(version>=4) require(fresh.loadLiving(in));
+        if(version>=4) require(fresh.loadLiving(in,version));
         fresh.atlas.discover(fresh.interiorSite?fresh.outsidePosition:fresh.hero.pos);
         fresh.camera.center=fresh.hero.pos; fresh.camera.zoom=camera.zoom; fresh.world.focus(fresh.hero.pos);
         fresh.enemyCenter=World::chunkAt(fresh.hero.pos); fresh.spawnTimer=1;

@@ -88,7 +88,7 @@ int main(int argc,char** argv) {
         er::Terminal terminal(!headless&&!native);
         er::Framebuffer frame(w,h),interface(160,50);
         er::Game game(seed,dataPath,mods);
-        game.data.applyClass(game.hero,er::parseRole(className));
+        game.applyPlayerClass(er::parseRole(className));
         game.setScene(scene);
         if(positionSet) {
             game.hero.pos=startPosition; game.camera.center=startPosition; game.aim=startPosition+er::Vec2{5,0};
@@ -101,7 +101,7 @@ int main(int argc,char** argv) {
         if(!headless&&!demo) game.loadSettings();
         if(normal) game.setTesting(false);
         if(fpsExplicit) game.presentationFps=fps;
-        if(classExplicit) game.data.applyClass(game.hero,er::parseRole(className));
+        if(classExplicit) game.applyPlayerClass(er::parseRole(className));
         game.refreshSaves();
         fps=game.presentationFps;
         game.screen=(headless||demo)?er::Screen::Playing:er::Screen::Title;

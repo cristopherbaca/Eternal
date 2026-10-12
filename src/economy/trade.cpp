@@ -5,7 +5,7 @@ void Game::tradeWith(const Person& p,int action) {
     auto& state=population.changes[p.id]; if(state.gold<0) state.gold=p.gold;
     if(action<3) {
         int id=int((p.key+uint32_t(action))%data.items.size()); const auto& item=data.items[size_t(id)]; int price=buyPrice(p,item);
-        if(hero.gold<price||hero.inventory.size()>=24) { dialogue="Not enough gold or inventory space."; return; }
+        if(hero.gold<price||!canCarry(id)) { dialogue="Not enough gold or inventory space."; return; }
         hero.gold-=price; state.gold+=price; hero.inventory.push_back(id); dialogue="Bought "+item.name+".";
     } else if(action==3) {
         if(hero.inventory.empty()) { dialogue="You have nothing to sell."; return; }

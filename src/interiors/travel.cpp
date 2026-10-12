@@ -15,7 +15,7 @@ void Game::interactPlace() {
             if(inside.opened) { message="The chest is empty."; return; }
             if(std::any_of(mobs.begin(),mobs.end(),[](const Entity& e){return e.alive;})) { message="Defeat the vault's guardians before opening the chest."; return; }
             int item=int(atlas.place(*interiorSite).key%data.items.size());
-            if(hero.inventory.size()>=24) { message="Inventory full. Make room before claiming the chest."; return; }
+            if(!canCarry(item)) { message="Inventory full. Make room before claiming the chest."; return; }
             hero.inventory.push_back(item); hero.gold+=60; awardXP(100); inside.opened=true; clearedPlaces.insert(*interiorSite);
             message="Vault cleared! Found "+data.items[size_t(item)].name+", 60 gold and 100 XP.";
             return;

@@ -9,7 +9,7 @@ Constraints: preserve the existing renderer, combat, class definitions, HUD/menu
 2. **Partially complete** — enterable buildings/dungeons, bounded local simulation, day/night/weather, ambient animals.
 3. **Complete (vertical slice)** — generated NPC identities/schedules, dialogue, trade/services; structured history/books and factions.
 4. **Partially complete** — quests and a playable town → dungeon → reward loop, quest/lore log and persistent state.
-5. **Pending** — broader crime, skills/perks, crafting, random equipment affixes and additional quest templates. These are not implemented by the existing game.
+5. **Partially complete** — broader crime, skills/perks, crafting, random equipment affixes and additional quest templates. These are not implemented by the existing game.
 
 ## Verification / running
 - Build: `/private/tmp/eternalrpg-build-tools/cmake/data/bin/cmake --build build -j 6`
@@ -50,3 +50,11 @@ Constraints: preserve the existing renderer, combat, class definitions, HUD/menu
 - Tests cover added climates, deterministic clock/weather, bounded wildlife and visible day/night differences. Terrain remains streamed; atmospheric effects are a lightweight framebuffer pass.
 - Limits: weather is regional ambiance rather than a fluid simulation; wolves use existing hostile combat AI, not an ecological food chain. Roads do not yet form an authored political trade network.
 - Budget re-check: remaining usage remains unavailable. Next: integration/performance checks and documenting exact implemented versus remaining scope.
+
+## Phase 4 result: lightweight progression and civic consequences
+- U opens the additive mastery/crafting panel. Successful ability use earns per-class mastery; every 20 casts yields a talent point, spent on capped vitality/power/armor talents. Class switching retains those class-specific ranks without stacking bonuses.
+- G gathers ore/herbs/food once per chunk per game day. Four data-driven recipes cover smithing, alchemy, enchanting and cooking. Inventory, trade and chests respect a 60-unit carrying capacity (existing item categories supply weights).
+- Dialogue offers explicit theft. Nearby witnesses create a town bounty and reduce faction reputation; guards pursue via existing combat AI. A guard accepts a fine or a timed jail/XP penalty. Faction standing labels advance from outsider to ally/champion through quest rewards.
+- Save v5 persists talents, practice, materials, harvested areas, bounties and the event feed. Prior save versions are migration-tested.
+- Limits: these are basic systems, not full Skyrim subsystems. Talents are three tracks per class, recipes are four explicit recipes, enchanting creates a charm, and crime currently covers theft rather than arbitrary assault/property ownership. Random rarity/affixes, autonomous social relationships, and escort/rescue/stealth quest mechanics remain unimplemented. No claim is made that the whole attached design is complete.
+- Budget re-check: remaining usage is still not exposed. Next: final end-to-end, native layout, performance and documentation checks; no new large subsystem will start before those pass.

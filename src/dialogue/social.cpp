@@ -41,7 +41,7 @@ void Game::offerQuest(const Person& person) {
 }
 void Game::socialInput(const Input& input) {
     std::string keys=input.keys;
-    int count=screen==Screen::Talk?8:screen==Screen::Trade?6:screen==Screen::Journal?std::max(1,int(quests.size())+1):std::max(1,int(chronicle.events.size()));
+    int count=screen==Screen::Talk?10:screen==Screen::Trade?6:screen==Screen::Journal?std::max(1,int(quests.size())+1):std::max(1,int(chronicle.events.size()));
     if(input.click) {
         int width=std::min(78,uiWidth-2),height=std::min(30,uiHeight-2),x=(uiWidth-width)/2,y=(uiHeight-height)/2;
         int row=input.mouseY-y,visible=std::max(1,(height-14)/2),first=std::max(0,menuIndex-visible+1);
@@ -70,6 +70,8 @@ void Game::socialInput(const Input& input) {
                 if(hero.gold<40||party.size()>=3) { dialogue="Hiring costs 40 gold; at most three companions can travel with you."; break; }
                 Entity e; e.id=2+int(party.size()); e.name=p.name; e.kind=Kind::Party; e.level=hero.level; data.applyClass(e,Role(p.job%5)); e.pos=hero.pos+Vec2{2,0}; party.push_back(e); companions=true; hero.gold-=40; state.recruited=true; dialogue="I will walk beside you."; break;
             }
+            case 7: stealFrom(p); break;
+            case 8: settleBounty(p); break;
             default: screen=Screen::Playing; break;
         }
     }
@@ -81,7 +83,9 @@ void Game::renderSocial(Framebuffer& f) const {
     auto option=[&](int i,const std::string& text) { int visible=std::max(1,(h-14)/2),first=std::max(0,menuIndex-visible+1); if(i>=first&&i<first+visible) line(5+(i-first)*2,(i==menuIndex?"> ":"  ")+text,i==menuIndex?Color{255,222,139}:white); };
     if(screen==Screen::Talk) {
         auto p=speaker(); line(2,p.name+" / "+population.jobs[size_t(p.job)].name+" / "+population.traits[size_t(p.trait)].name,{225,200,145});
-        const char* topics[]={"About you","Rumors and history","Family and people","Work / turn in quest","Trade and services","Rest and a meal (10g)","Hire companion (40g)","Goodbye"}; for(int i=0;i<8;++i) option(i,topics[i]);
+        auto faction=population.jobs[size_t(p.job)].faction; auto rep=reputation.find(faction); int standing=rep==reputation.end()?0:rep->second;
+        line(3,faction+" / "+(standing<0?"Distrusted":standing>=10?"Champion":standing>=3?"Ally":"Outsider"),muted);
+        const char* topics[]={"About you","Rumors and history","Family and people","Work / turn in quest","Trade and services","Rest and a meal (10g)","Hire companion (40g)","Steal from purse (crime)","Guard: pay fine / serve sentence","Goodbye"}; for(int i=0;i<10;++i) option(i,topics[i]);
     } else if(screen==Screen::Trade) {
         auto p=speaker(); line(2,"TRADE / "+p.name+" / Your gold: "+std::to_string(hero.gold),{225,200,145});
         for(int i=0;i<3;++i) { int id=int((p.key+uint32_t(i))%data.items.size()); const auto& item=data.items[size_t(id)]; option(i,"Buy "+item.name+" ("+std::to_string(buyPrice(p,item))+"g)"); }

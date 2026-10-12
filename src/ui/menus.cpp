@@ -8,7 +8,7 @@ bool Game::loadSettings(const std::filesystem::path& path) {
     if((test!=0&&test!=1)||(allies!=0&&allies!=1)||(names!=0&&names!=1)||(hints!=0&&hints!=1)||
        fps<20||fps>240||density<0||density>2||!std::isfinite(zoom)||zoom<.55f||zoom>2||role<0||role>4) return false;
     presentationFps=fps; detail=density; camera.zoom=zoom; showNames=names; showHelp=hints;
-    data.applyClass(hero,Role(role)); setCompanions(allies); setTesting(test); return true;
+    applyPlayerClass(Role(role)); setCompanions(allies); setTesting(test); return true;
 }
 bool Game::saveSettings(const std::filesystem::path& path) const {
     std::ofstream out(path);
@@ -42,6 +42,7 @@ void Game::setCompanions(bool enabled) {
     }
 }
 void Game::menuInput(const Input& input) {
+    if(screen==Screen::Progress) { progressInput(input); return; }
     if(socialScreen()) { socialInput(input); return; }
     std::string keys=input.keys;
     if(input.click) {
@@ -131,7 +132,7 @@ void Game::menuInput(const Input& input) {
                 case 7: {
                     int role=(int(hero.role)+direction+5)%5;
                     if(hero.testing||(hero.alive&&!fight.active&&hero.hurtTime<=0)) {
-                        data.applyClass(hero,Role(role));
+                        applyPlayerClass(Role(role));
                         for(int item:hero.equipment) if(item>=0) {
                             hero.armor+=data.items[size_t(item)].armor;
                             hero.power+=data.items[size_t(item)].power;

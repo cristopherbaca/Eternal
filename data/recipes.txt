@@ -1,0 +1,5 @@
+# name skill ore herbs food gold outputItem (-1 healing, -2 meal)
+"Iron sword" "Smithing" 3 0 0 10 6
+"Healing tonic" "Alchemy" 0 3 0 0 -1
+"Warding charm" "Enchanting" 1 2 0 20 2
+"Trail meal" "Cooking" 0 0 2 0 -2

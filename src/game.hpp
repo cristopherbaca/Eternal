@@ -12,7 +12,7 @@
 #include "worldgen/environment.hpp"
 #include <deque>
 namespace er {
-enum class Screen { Title, Playing, Paused, Settings, Map, Create, Saves, SaveActions, DeleteSave, Talk, Trade, Journal, Lore };
+enum class Screen { Title, Playing, Paused, Settings, Map, Create, Saves, SaveActions, DeleteSave, Talk, Trade, Journal, Lore, Progress };
 struct BossFight { bool active=false,won=false; float elapsed=0,ring=3,breath=6,wing=11,adds=16; int phase=1; };
 class Game {
 public:
@@ -41,13 +41,19 @@ public:
     Vec2 outsidePosition{}; std::vector<Entity> outsideMobs; std::vector<Loot> outsideLoot;
     float transition=0;
     void interactPlace(); void leaveInterior(); void tickInterior(float dt);
+    std::array<int,5> mastery{}; std::array<int,15> talents{};
+    std::array<int,3> materials{}; std::array<int,4> craftPractice{};
+    std::map<PlaceId,int> harvested,bounties; float societyTimer=0;
+    void applyPlayerClass(Role role); int perkPoints() const; int carryWeight() const; bool canCarry(int item) const;
+    void gather(); void craft(int index); void progressInput(const Input& input); void renderProgress(Framebuffer& frame) const;
+    void stealFrom(const Person& p); void settleBounty(const Person& p); void tickSociety(float dt);
     Environment environment;
     std::deque<std::string> eventLog; std::string lastEvent;
     Atlas atlas;
     Population population; Chronicle chronicle; std::vector<Quest> quests;
     std::map<std::string,int> reputation;
     NpcId talking{}; std::string dialogue; int loreIndex=0;
-    void saveLiving(std::ostream& out) const; bool loadLiving(std::istream& in);
+    void saveLiving(std::ostream& out) const; bool loadLiving(std::istream& in,int saveVersion);
     void talkNearby(); Person speaker() const; void learnLore(int index); void offerQuest(const Person& person);
     void socialInput(const Input& input); void renderSocial(Framebuffer& frame) const;
     int buyPrice(const Person& person,const ItemDef& item) const; void tradeWith(const Person& person,int action);
