@@ -13,6 +13,7 @@
 int main(int argc,char** argv) {
     try {
         bool headless=false,demo=false,native=false,normal=false,fpsExplicit=false,classExplicit=false,noMods=false,listMods=false,positionSet=false,worldReport=false;
+        bool renderer2D=false,raw3D=false;
         er::Vec2 startPosition{};
         int frames=0,w=200,h=60,fps=60;
         uint64_t seed=42;
@@ -23,6 +24,8 @@ int main(int argc,char** argv) {
             auto value=[&]() -> std::string { if(i+1>=argc) throw std::runtime_error("Missing value for "+arg); return argv[++i]; };
             if(arg=="--headless"||arg=="--benchmark") headless=true;
             else if(arg=="--window") native=true;
+            else if(arg=="--renderer-2d") renderer2D=true;
+            else if(arg=="--raw-3d") raw3D=true;
             else if(arg=="--world-report") worldReport=true;
             else if(arg=="--demo") demo=true;
             else if(arg=="--frames") frames=std::stoi(value());
@@ -47,7 +50,8 @@ int main(int argc,char** argv) {
                     "WASD move, mouse/arrows aim, click/Space primary, 1-6 abilities\n"
                     "Tab target, C class, I inventory, E loot, B boss, R respawn, M map, Esc/P pause, Q quit\n"
                     "--scene grass|forest|ruins|water|boss  --class Warrior|Mage|Archer|Cleric|Rogue\n"
-                    "--window (macOS Metal ASCII window)\n"
+                    "--window (macOS Metal perspective ASCII window), --raw-3d, --renderer-2d\n"
+                    "3D: right-drag orbit, wheel zoom, F8 raw/ASCII, F9 renderer diagnostics\n"
                     "--seed N  --name NAME  --fps 60  --data DIR  --demo\n"
                     "--mod ID --mods-dir DIR --no-mods --list-mods --position X Y\n"
                     "--world-report lists generated sites, residents and history for the seed\n"
@@ -89,6 +93,12 @@ int main(int argc,char** argv) {
         er::Terminal terminal(!headless&&!native);
         er::Framebuffer frame(w,h),interface(160,50);
         er::Game game(seed,dataPath,mods);
+#ifdef __APPLE__
+        er::Terrain3D terrain3D;
+        if(window) window->raw3D(raw3D);
+#else
+        (void)raw3D; (void)renderer2D;
+#endif
         game.applyPlayerClass(er::parseRole(className));
         game.setScene(scene);
         if(positionSet) {
@@ -111,13 +121,15 @@ int main(int argc,char** argv) {
         float frameMs=1000.f/fps,accumulator=0,nextShot=0,nextArea=1.5f;
         int count=0;
         uint64_t bytes=0;
-        std::vector<double> workTimes;
+        std::vector<double> workTimes,terrainGpuTimes,compositeGpuTimes;
         auto period=std::chrono::microseconds(1000000/fps);
         auto inputPeriod=std::chrono::microseconds(1000000/std::max(60,fps));
         while(er::Terminal::running()&&(!frames||count<frames)) {
             auto begin=Clock::now();
             auto input=terminal.poll();
 #ifdef __APPLE__
+            game.camera.perspective=window&&!renderer2D&&!game.world.interior;
+            game.camera.terrain=&game.world;
             if(window) input=window->poll(game.screen!=er::Screen::Playing,game.editingField);
 #endif
             game.input(input);
@@ -151,7 +163,7 @@ int main(int argc,char** argv) {
                 auto dimensions=terminal.size();
 #ifdef __APPLE__
                 if(window) {
-                    dimensions=window->size(game.detail);
+                    dimensions=game.camera.perspective?window->interfaceSize():window->size(game.detail);
                     auto [uw,uh]=window->interfaceSize();
                     if(interface.width!=uw||interface.height!=uh) interface.resize(uw,uh);
                 }
@@ -177,7 +189,21 @@ int main(int argc,char** argv) {
 #endif
                 bool submitted=true;
 #ifdef __APPLE__
-                if(window) submitted=window->present(frame,interface);
+                if(window) {
+                    bool perspective=game.camera.perspective&&!game.frontEnd();
+                    if(window->terrainMilliseconds()>0) terrainGpuTimes.push_back(window->terrainMilliseconds());
+                    if(window->gpuMilliseconds()>0) compositeGpuTimes.push_back(window->gpuMilliseconds());
+                    if(perspective) terrain3D.update(game.world,game.hero.pos);
+                    if(perspective&&window->debug3D()) {
+                        int x=std::max(0,interface.width-49),y=std::max(0,interface.height-14);
+                        interface.text(x,y,"3D FOUNDATION | F8 raw/ASCII | F9 close");
+                        interface.text(x,y+1,"Drag: orbit | Wheel: zoom | [ ] FOV");
+                        interface.text(x,y+2,"Terrain GPU: "+std::to_string(window->terrainMilliseconds())+" ms");
+                        interface.text(x,y+3,"Composite GPU: "+std::to_string(window->gpuMilliseconds())+" ms");
+                        interface.text(x,y+4,"Chunks: "+std::to_string(terrain3D.chunks.size()));
+                    }
+                    submitted=window->present(frame,interface,perspective?&terrain3D:nullptr,perspective?&game.camera:nullptr,game.screen==er::Screen::Playing?1.f:.24f);
+                }
                 else
 #endif
                 {
@@ -212,11 +238,13 @@ int main(int argc,char** argv) {
         std::sort(workTimes.begin(),workTimes.end());
         double p95=workTimes.empty()?0:workTimes[std::min(workTimes.size()-1,size_t(workTimes.size()*.95))];
         if(!dump.empty()) frame.dump(dump);
+        auto average=[](const std::vector<double>& samples){return samples.empty()?0:std::accumulate(samples.begin(),samples.end(),0.0)/samples.size();};
         if(!stats.empty()) {
             std::ofstream out(stats);
             if(!out) throw std::runtime_error("Cannot write metrics: "+stats);
             out<<std::fixed<<std::setprecision(3)<<"{\"frames\":"<<count<<",\"seconds\":"<<seconds
                 <<",\"fps\":"<<(seconds>0?count/seconds:0)<<",\"work_mean_ms\":"<<mean<<",\"work_p95_ms\":"<<p95
+                <<",\"terrain_gpu_mean_ms\":"<<average(terrainGpuTimes)<<",\"composite_gpu_mean_ms\":"<<average(compositeGpuTimes)
                 <<",\"ansi_bytes\":"<<bytes<<",\"width\":"<<frame.width<<",\"height\":"<<frame.height
                 <<",\"hero_hp\":"<<game.hero.hp<<",\"boss_hp\":"<<game.dragon.hp<<",\"boss_won\":"<<(game.fight.won?"true":"false")<<"}\n";
         }

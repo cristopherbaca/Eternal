@@ -91,6 +91,10 @@ void Game::input(const Input& in) {
         if(in.keys.find('y')!=std::string::npos) { talkNearby(); return; }
         if(in.keys.find('j')!=std::string::npos||in.keys.find('l')!=std::string::npos) { screen=in.keys.find('l')!=std::string::npos?Screen::Lore:Screen::Journal; menuIndex=0; velocity={}; casts.clear(); dialogue.clear(); return; }
     }
+    if(camera.perspective) {
+        if(in.keys.find('[')!=std::string::npos) camera.fov=std::max(35*pi/180,camera.fov-3*pi/180);
+        if(in.keys.find(']')!=std::string::npos) camera.fov=std::min(80*pi/180,camera.fov+3*pi/180);
+        camera.yaw+=in.orbitX*.006f; camera.tilt=clamp(camera.tilt+in.orbitY*.004f,45*pi/180,65*pi/180); }
     if(in.heldMovement) { velocity={}; movementTime=0; }
     Vec2 direction{};
     for(char k:in.keys+in.movementKeys) {
@@ -134,9 +138,10 @@ void Game::input(const Input& in) {
         direction.x=float(movement.find('d')!=std::string::npos)-float(movement.find('a')!=std::string::npos);
         direction.y=float(movement.find('s')!=std::string::npos)-float(movement.find('w')!=std::string::npos);
     }
+    if(camera.perspective) direction={direction.x*std::cos(camera.yaw)-direction.y*std::sin(camera.yaw),-direction.x*std::sin(camera.yaw)-direction.y*std::cos(camera.yaw)};
     if(length(direction)>0) { velocity=normalized(direction)*hero.speed; movementTime=.16f; }
     if(in.scroll) camera.zoom=clamp(camera.zoom+in.scroll*.1f,.55f,2.f);
-    if(in.mouseX>=0) aim=camera.unproject({float(in.mouseX),float(in.mouseY)});
+    if(in.mouseX>=0) { Vec2 hit; if(camera.pick({float(in.mouseX),float(in.mouseY)},hit)) aim=hit; }
     if(in.click) casts.push_back(0);
 }
 void Game::tick(float dt) {
@@ -189,7 +194,7 @@ void Game::render(Framebuffer& f,float ms,Framebuffer* interface) {
         else renderUI(f,ms);
         return;
     }
-    scene.begin(camera); world.render(scene,time); if(!world.interior) { atlas.focus(hero.pos); atlas.render(scene,time); population.render(scene,time); environment.render(scene,time); renderEscorts(scene); }
+    scene.begin(camera); if(!camera.perspective) world.render(scene,time); if(!world.interior) { atlas.focus(hero.pos); atlas.render(scene,time); population.render(scene,time); environment.render(scene,time); renderEscorts(scene); }
     for(const auto& e:party) if(e.alive) drawCharacter(scene,e.pos,e.color,time,length(e.velocity)>0,int(e.role));
     for(const auto& e:mobs) if(e.alive) {
         if(e.name=="Wolf") { scene.point(e.pos,1,{172,168,166},U'w'); scene.point(e.pos+Vec2{1,0},1.5f,{220,179,128},U'>'); }
@@ -198,8 +203,8 @@ void Game::render(Framebuffer& f,float ms,Framebuffer* interface) {
     for(const auto& item:loot) scene.point(item.pos,.3f,{192,171,109},U'*',{0,0,1},.2f);
     if(dragon.alive&&!world.interior) drawDragon(scene,dragon.pos,time);
     combat.render(scene,time);
-    world.reflections(scene,time); scene.convert(f);
-    if(!world.interior) environment.atmosphere(f,camera,world.terrainSeed,time);
+    if(!camera.perspective) world.reflections(scene,time); scene.convert(f);
+    if(!world.interior&&!camera.perspective) environment.atmosphere(f,camera,world.terrainSeed,time);
     if(hero.alive) playerAvatar(f,camera,hero,time);
     if(showNames) { nameLabel(f,camera,hero); for(const auto& e:party) nameLabel(f,camera,e,e.id==hero.target);
     for(const auto& e:mobs) nameLabel(f,camera,e,e.id==hero.target);

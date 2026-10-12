@@ -94,3 +94,17 @@ Reference videos from earlier messages are absent from their supplied Downloads 
 - 238 checks pass, plus native controls. Native 320×100, 240-frame dune run: 58.90 submissions/s at 60 target, 13.34 ms p95 work. Headless frontier: 10.78 ms mean / 12.19 ms p95. Native captures inspected and stored in docs/screenshots.
 - Terrain changes regenerate older worlds under the new algorithm; save schema remains compatible. All edits are terrain, camera integration, tests or documentation.
 - Budget remaining: unavailable. Both requested terrain steps are complete; no further gameplay systems were started. See docs/TERRAIN.md for reproducible biome coordinates and limits.
+
+# Real 3D renderer conversion — Step 1 only
+Budget: remaining usage is not exposed by this session.
+Plan: one world/screen perspective camera and terrain ray casting; bounded chunk meshes with normals; Metal offscreen color/normal/depth attachments; raw preview and a temporary brightness-only ASCII preview using the existing atlas. Keep existing glyph objects as transitional placeholders until Step 4. Preserve gameplay and the crisp HUD.
+Validate camera/ray math, mesh seams, native controls, spells/combat/save regression, raw/ASCII captures and timing. Commit this step and wait for “next”; edge/temporal ASCII, shadows, models, grass/reflections belong to later steps.
+Reference: earlier supplied video paths are currently absent and ffmpeg is not installed. Existing reference-era repository screenshots are the available comparison images; do not label these as extracted video frames.
+
+## 3D Step 1 result — ready for review
+- Added one perspective world/screen camera module, 55-degree initial tilt, right-drag orbit, camera-relative movement, zoom/FOV controls and terrain ray casting matching mesh triangles.
+- Added bounded 49-chunk terrain meshes with normals, cached GPU uploads, Metal offscreen color/normal/depth targets and hardware terrain depth testing. Existing glyph objects remain terrain-grounded placeholders pending Step 4.
+- Native output provides an initial brightness-only ASCII preview and F8 raw view. F9 displays GPU timings. HUD/menu layout, combat/classes, seed and save format are preserved. Interiors/terminal and --renderer-2d keep the prior renderer.
+- 247 core checks and native input/GPU tests pass. Existing combat, spell and save checks remain passing. Native 240-frame result: 59.77 submissions/s, CPU 6.00 ms mean / 7.48 ms p95, terrain GPU 0.313 ms mean, composite GPU 2.357 ms mean.
+- Inspected raw/ASCII native captures; saved in docs/screenshots/18-3d-foundation-*.png. References available only as repository screenshots: original video paths are missing. Biggest remaining visual gap is uniform brightness glyph bands; Step 2 addresses edges/stability. Models, shadows, grass and reflections remain later steps.
+- Budget remaining: unavailable. Stop here and wait for “next”; do not start Step 2.

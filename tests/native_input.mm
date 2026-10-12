@@ -75,6 +75,23 @@ int main() { @autoreleasepool { try {
     key(@"u",32,true); game.input(window.poll());
     check(game.screen==er::Screen::Progress,"native U opens mastery and crafting");
     capture("ER_PROGRESS_CAPTURE");
-    std::cout<<"PASS: native focus, Enter, diagonal holds, key release, pause, menu click, mouse aim and cast\n";
+    game.screen=er::Screen::Playing; game.camera.perspective=true; game.camera.terrain=&game.world;
+    world.resize(160,50); game.render(world,16,&ui);
+    er::Terrain3D mesh; mesh.update(game.world,game.hero.pos);
+    while(!window.ready()) [NSThread sleepForTimeInterval:.001];
+    check(window.present(world,ui,&mesh,&game.camera),"native 3D terrain submits");
+    while(!window.ready()) [NSThread sleepForTimeInterval:.001];
+    check(window.terrainMilliseconds()>0,"offscreen terrain pass completes on GPU");
+    key([NSString stringWithFormat:@"%C",(unichar)NSF8FunctionKey],100,true); window.poll();
+    check(window.raw3D(),"F8 toggles raw 3D preview");
+    key([NSString stringWithFormat:@"%C",(unichar)NSF9FunctionKey],101,true); window.poll();
+    check(window.debug3D(),"F9 toggles renderer diagnostics");
+    auto p3=game.camera.project(game.hero.pos+er::Vec2{3,1});
+    NSPoint aimPoint=NSMakePoint((p3.x+.5f)/world.width*size.width,(1-(p3.y+.5f)/world.height)*size.height);
+    NSEvent* aimClick=[NSEvent mouseEventWithType:NSEventTypeLeftMouseDown location:aimPoint modifierFlags:0 timestamp:0 windowNumber:native.windowNumber context:nil eventNumber:2 clickCount:1 pressure:1];
+    [NSApp postEvent:aimClick atStart:NO]; game.hero.cooldown[0]=0; game.hero.mp=game.hero.maxMp;
+    game.input(window.poll()); game.tick(1.f/60);
+    check(game.hero.cooldown[0]>0&&er::distance(game.aim,game.hero.pos)<10,"native perspective ray aiming still casts");
+    std::cout<<"PASS: native focus, Enter, diagonal holds, key release, pause, menu click, mouse aim/cast, Metal 3D, raw toggle and diagnostics\n";
     return 0;
 } catch(const std::exception& error) { std::cerr<<error.what()<<'\n'; return 1; } } }

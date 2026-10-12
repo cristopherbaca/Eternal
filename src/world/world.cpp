@@ -16,7 +16,6 @@ constexpr Palette palettes[]={
     {{34,69,45},{86,131,70},.67f,1.4f,.06f,U'*',U'.'}
 };
 }
-float Camera::ground(Vec2 p) const { return terrain?terrain->visualHeight(p):0; }
 float World::rawHeight(Vec2 p) const {
     Vec2 warped=p+Vec2{terrainNoise(p,421,310)-.5f,terrainNoise(p,727,310)-.5f}*130;
     float continent=terrainNoise(warped,1103,780);

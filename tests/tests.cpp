@@ -3,6 +3,7 @@
 #include "world/world.hpp"
 #include "combat/combat.hpp"
 #include "game.hpp"
+#include "renderer/terrain3d.hpp"
 #include "ai/ai.hpp"
 #include "ui/hud.hpp"
 #include <iostream>
@@ -53,6 +54,31 @@ int main() { try {
     Camera camera; camera.terrain=&relief; camera.center=edge;
     Vec2 point=edge+Vec2{8,5}; check(distance(camera.unproject(camera.project(point)),point)<.08f,"terrain projection preserves mouse-to-world alignment");
     relief.focus({10000,10000}); check(relief.loadedChunkCount()==49&&std::abs(before-relief.elevation(edge))<.0001f,"terrain unloads and regenerates deterministically");
+    }
+    {
+    World world3(42); world3.focus({640,768}); Camera camera3; camera3.terrain=&world3; camera3.perspective=true; camera3.center={640,768}; camera3.width=160; camera3.height=50;
+    bool accurate=true;
+    for(float yaw:{0.f,.6f,1.8f,3.1f}) { camera3.yaw=yaw; for(Vec2 delta:{Vec2{0,0},Vec2{3,2},Vec2{-4,1}}) {
+        Vec2 p=camera3.center+delta,hit; accurate&=camera3.pick(camera3.project(p),hit)&&distance(hit,p)<.005f;
+    } }
+    check(accurate,"perspective ray casting inverts projection across orbit angles");
+    camera3.yaw=0; auto nearScreen=camera3.project(camera3.center+Vec2{4,0}); camera3.zoom=1.5f;
+    check(std::abs(camera3.project(camera3.center+Vec2{4,0}).x-80)>std::abs(nearScreen.x-80),"perspective zoom changes projected scale");
+    auto eye=camera3.view().eye; check(eye[2]>camera3.ground(camera3.center),"orbit eye is above terrain target");
+    Terrain3D mesh; mesh.update(world3,camera3.center); auto revision=mesh.revision; mesh.update(world3,camera3.center);
+    check(mesh.chunks.size()==49&&mesh.revision==revision,"terrain mesh cache is bounded and reused without uploads");
+    bool normals=true; for(const auto& v:mesh.chunks.begin()->second.vertices) { float n=v.normal[0]*v.normal[0]+v.normal[1]*v.normal[1]+v.normal[2]*v.normal[2]; normals&=std::abs(n-1)<.001f&&std::isfinite(v.position[2]); }
+    check(normals,"mesh supplies finite positions and normalized terrain normals");
+    auto before=mesh.chunks.begin()->second.vertices.front(); auto key=mesh.chunks.begin()->first;
+    world3.focus({10000,10000}); mesh.update(world3,{10000,10000}); world3.focus({640,768}); mesh.update(world3,{640,768});
+    check(mesh.chunks.size()==49&&mesh.chunks.at(key).vertices.front().position==before.position,"3D mesh regeneration preserves seeded heights");
+    Game orbit; orbit.camera.perspective=true; orbit.camera.terrain=&orbit.world; Input drag; drag.orbitX=100; drag.orbitY=100; orbit.input(drag);
+    check(orbit.camera.yaw>.5f&&orbit.camera.tilt<=65*pi/180,"orbit input rotates and bounds camera pitch");
+    orbit.camera.yaw=0; Input forward3; forward3.keys="w"; orbit.input(forward3);
+    check(orbit.velocity.y>0&&std::abs(orbit.velocity.x)<.001f,"W advances into the perspective view");
+    orbit.velocity={};
+    Input aim3; auto target=orbit.camera.project(orbit.hero.pos+Vec2{2,1}); aim3.mouseX=int(target.x); aim3.mouseY=int(target.y); aim3.click=true; orbit.input(aim3); orbit.tick(1.f/60);
+    check(orbit.hero.cooldown[0]>0&&distance(orbit.aim,orbit.hero.pos)<8,"perspective mouse aim still casts through existing combat");
     }
     World a(42),b(42); check(a.trees.size()==b.trees.size(),"world repeatability"); check(!a.blocked({0,-600}),"old map boundary removed");
     a.pushGrass({0,12},3,10); a.tick(1.f/60); check(length(a.grassBend({1,12}))>0,"grass deflects");

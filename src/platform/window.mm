@@ -29,10 +29,15 @@ struct Window::Impl {
     CAMetalLayer* layer;
     id<MTLDevice> device;
     id<MTLCommandQueue> queue;
-    id<MTLRenderPipelineState> pipeline;
+    id<MTLRenderPipelineState> pipeline,terrainPipeline;
+    id<MTLDepthStencilState> depthState;
+    id<MTLTexture> color3D,normal3D,depth3D;
+    id<MTLBuffer> meshBuffer;
+    size_t meshVertices=0; uint64_t meshRevision=~uint64_t(0);
+    bool raw=false,debug=false;
     id<MTLTexture> atlas;
     id<MTLBuffer> cells,interface;
-    id<MTLCommandBuffer> pending;
+    id<MTLCommandBuffer> pending,pendingTerrain;
     std::array<bool,128> held{};
     int cols=320,rows=100,uiCols=160,uiRows=50;
 };
@@ -46,14 +51,42 @@ vertex Vertex vertices(uint id [[vertex_id]]) {
     return {float4(p,0,1),float2((p.x+1)*0.5,(1-p.y)*0.5)};
 }
 float3 rgb(uint v) { return float3(v&255,(v>>8)&255,(v>>16)&255)/255.0; }
+struct MeshVertex { float4 position; float4 normal; float4 color; };
+struct View3D { float4 eye,right,up,forward,lens; };
+struct TerrainOut { float4 position [[position]]; float3 normal; float3 color; float3 world; };
+vertex TerrainOut terrainVertex(uint id [[vertex_id]],const device MeshVertex* mesh [[buffer(0)]],constant View3D& view [[buffer(1)]]) {
+    MeshVertex v=mesh[id]; float3 d=v.position.xyz-view.eye.xyz;
+    float z=dot(d,view.forward.xyz),near=view.lens.z,far=view.lens.w;
+    float4 clip=float4(dot(d,view.right.xyz)*view.lens.x/view.lens.y,dot(d,view.up.xyz)*view.lens.x,far/(far-near)*z-far*near/(far-near),z);
+    return {clip,v.normal.xyz,v.color.xyz,v.position.xyz};
+}
+struct TerrainTargets { float4 color [[color(0)]]; float4 normal [[color(1)]]; };
+fragment TerrainTargets terrainFragment(TerrainOut in [[stage_in]]) {
+    float3 n=normalize(in.normal);
+    float light=.32+.68*max(0.0,dot(n,normalize(float3(-.5,-.35,.8))));
+    return {float4(in.color*light,1),float4(n*.5+.5,1)};
+}
 fragment float4 draw(Vertex in [[stage_in]], constant Cell* cells [[buffer(0)]],
                      constant uint2& grid [[buffer(1)]], texture2d<float> atlas [[texture(0)]],
-                     constant Cell* interface [[buffer(2)]], constant uint2& uiGrid [[buffer(3)]]) {
+                     constant Cell* interface [[buffer(2)]], constant uint2& uiGrid [[buffer(3)]],
+                     texture2d<float> sceneColor [[texture(1)]],constant uint& mode [[buffer(4)]],constant float& backdrop [[buffer(5)]]) {
     float2 p=clamp(in.uv,float2(0),float2(0.999999))*float2(grid);
     uint2 cell=uint2(p);
     Cell c=cells[cell.y*grid.x+cell.x];
+    float3 source=float3(0);
+    if(mode!=0) {
+        source=sceneColor.read(min(cell,uint2(sceneColor.get_width()-1,sceneColor.get_height()-1))).rgb*backdrop;
+        if(c.glyph<=32) {
+            constexpr char ramp[]=" .:-=+*#%@";
+            float light=dot(source,float3(.2126,.7152,.0722));
+            c.glyph=uint(ramp[clamp(int(light*12),0,9)]);
+            uint3 bytes=uint3(clamp(source*255,float3(0),float3(255)));
+            c.fg=bytes.x|(bytes.y<<8)|(bytes.z<<16); c.bg=0x1a0b0b;
+        }
+    }
     float2 ui=clamp(in.uv,float2(0),float2(0.999999))*float2(uiGrid);
     Cell overlay=interface[uint(ui.y)*uiGrid.x+uint(ui.x)];
+    if(mode==2&&overlay.glyph==0&&cells[cell.y*grid.x+cell.x].glyph<=32) return float4(source,1);
     if(overlay.glyph!=0) { c=overlay; p=ui; }
     float2 tile=float2(c.glyph%16,c.glyph/16);
     float2 local=fract(p);
@@ -78,6 +111,15 @@ Window::Window():impl(std::make_unique<Impl>()) {
         descriptor.colorAttachments[0].pixelFormat=MTLPixelFormatBGRA8Unorm;
         v.pipeline=[v.device newRenderPipelineStateWithDescriptor:descriptor error:&error];
         if(!v.pipeline) throw std::runtime_error([[error localizedDescription] UTF8String]);
+        descriptor.vertexFunction=[library newFunctionWithName:@"terrainVertex"];
+        descriptor.fragmentFunction=[library newFunctionWithName:@"terrainFragment"];
+        descriptor.colorAttachments[0].pixelFormat=MTLPixelFormatRGBA16Float;
+        descriptor.colorAttachments[1].pixelFormat=MTLPixelFormatRGBA16Float;
+        descriptor.depthAttachmentPixelFormat=MTLPixelFormatDepth32Float;
+        v.terrainPipeline=[v.device newRenderPipelineStateWithDescriptor:descriptor error:&error];
+        if(!v.terrainPipeline) throw std::runtime_error([[error localizedDescription] UTF8String]);
+        MTLDepthStencilDescriptor* depth=[MTLDepthStencilDescriptor new]; depth.depthCompareFunction=MTLCompareFunctionLess; depth.depthWriteEnabled=YES;
+        v.depthState=[v.device newDepthStencilStateWithDescriptor:depth];
         v.queue=[v.device newCommandQueue];
         // Cache all ASCII and box/block glyphs once, instead of shaping text every frame.
         std::vector<uint8_t> bitmap(256*432);
@@ -145,6 +187,8 @@ Input Window::poll(bool menu,bool textEntry) {
                     if(!(e.modifierFlags&NSEventModifierFlagCommand)) {
                         if(movement) v.held[size_t(movement)]=e.type==NSEventTypeKeyDown;
                         if(e.type==NSEventTypeKeyDown) {
+                            if(!menu&&key==NSF8FunctionKey) { v.raw=!v.raw; consumed=true; continue; }
+                            if(!menu&&key==NSF9FunctionKey) { v.debug=!v.debug; consumed=true; continue; }
                             if(key==NSUpArrowFunctionKey) input.keys+='^';
                             else if(key==NSDownArrowFunctionKey) input.keys+='v';
                             else if(key==NSLeftArrowFunctionKey) input.keys+='<';
@@ -161,6 +205,7 @@ Input Window::poll(bool menu,bool textEntry) {
                     clickPoint=[v.window.contentView convertPoint:e.locationInWindow fromView:nil];
                     clicked=true; input.click=true; consumed=true;
                 }
+                if(!menu&&e.type==NSEventTypeRightMouseDragged) { input.orbitX+=e.deltaX; input.orbitY+=e.deltaY; consumed=true; }
                 if(e.type==NSEventTypeLeftMouseUp) consumed=true;
                 if(e.type==NSEventTypeScrollWheel) input.scroll+=e.scrollingDeltaY>0?1:e.scrollingDeltaY<0?-1:0;
             }
@@ -182,7 +227,12 @@ Input Window::poll(bool menu,bool textEntry) {
     }
 }
 bool Window::ready() const { return !impl->pending||impl->pending.status>=MTLCommandBufferStatusCompleted; }
-bool Window::present(const Framebuffer& frame,const Framebuffer& interface) {
+void Window::raw3D(bool enabled) { impl->raw=enabled; }
+bool Window::raw3D() const { return impl->raw; }
+bool Window::debug3D() const { return impl->debug; }
+double Window::gpuMilliseconds() const { auto p=impl->pending; return p&&p.status==MTLCommandBufferStatusCompleted?(p.GPUEndTime-p.GPUStartTime)*1000:0; }
+double Window::terrainMilliseconds() const { auto p=impl->pendingTerrain; return p&&p.status==MTLCommandBufferStatusCompleted?(p.GPUEndTime-p.GPUStartTime)*1000:0; }
+bool Window::present(const Framebuffer& frame,const Framebuffer& interface,const Terrain3D* terrain,const Camera* camera,float backdrop) {
     @autoreleasepool {
         auto& v=*impl;
         v.cols=frame.width; v.rows=frame.height; v.uiCols=interface.width; v.uiRows=interface.height;
@@ -208,16 +258,50 @@ bool Window::present(const Framebuffer& frame,const Framebuffer& interface) {
             }
         };
         upload(frame,v.cells); upload(interface,v.interface);
+        auto command=[v.queue commandBuffer];
+        bool use3D=terrain&&camera;
+        if(use3D) {
+            if(!v.color3D||v.color3D.width!=NSUInteger(frame.width)||v.color3D.height!=NSUInteger(frame.height)) {
+                auto texture=[MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA16Float width:frame.width height:frame.height mipmapped:NO];
+                texture.usage=MTLTextureUsageRenderTarget|MTLTextureUsageShaderRead; texture.storageMode=MTLStorageModePrivate;
+                v.color3D=[v.device newTextureWithDescriptor:texture]; v.normal3D=[v.device newTextureWithDescriptor:texture];
+                texture.pixelFormat=MTLPixelFormatDepth32Float; v.depth3D=[v.device newTextureWithDescriptor:texture];
+            }
+            if(v.meshRevision!=terrain->revision) {
+                v.meshVertices=0; for(const auto& chunk:terrain->chunks) v.meshVertices+=chunk.second.vertices.size();
+                size_t size=v.meshVertices*sizeof(TerrainVertex);
+                if(!v.meshBuffer||v.meshBuffer.length<size) v.meshBuffer=[v.device newBufferWithLength:std::max(size,size_t(1)) options:MTLResourceStorageModeShared];
+                auto* target=static_cast<TerrainVertex*>(v.meshBuffer.contents);
+                for(const auto& chunk:terrain->chunks) { std::copy(chunk.second.vertices.begin(),chunk.second.vertices.end(),target); target+=chunk.second.vertices.size(); }
+                v.meshRevision=terrain->revision;
+            }
+            auto terrainPass=[MTLRenderPassDescriptor renderPassDescriptor];
+            terrainPass.colorAttachments[0].texture=v.color3D; terrainPass.colorAttachments[1].texture=v.normal3D;
+            for(int i=0;i<2;++i) { terrainPass.colorAttachments[i].loadAction=MTLLoadActionClear; terrainPass.colorAttachments[i].storeAction=MTLStoreActionStore; }
+            terrainPass.colorAttachments[0].clearColor=MTLClearColorMake(.043,.043,.102,1);
+            terrainPass.depthAttachment.texture=v.depth3D; terrainPass.depthAttachment.loadAction=MTLLoadActionClear;
+            terrainPass.depthAttachment.storeAction=MTLStoreActionStore; terrainPass.depthAttachment.clearDepth=1;
+            auto terrainCommand=[v.queue commandBuffer];
+            auto encoder=[terrainCommand renderCommandEncoderWithDescriptor:terrainPass];
+            [encoder setRenderPipelineState:v.terrainPipeline]; [encoder setDepthStencilState:v.depthState];
+            [encoder setVertexBuffer:v.meshBuffer offset:0 atIndex:0]; auto view=camera->view();
+            [encoder setVertexBytes:&view length:sizeof(view) atIndex:1];
+            [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:v.meshVertices]; [encoder endEncoding];
+            [terrainCommand commit]; v.pendingTerrain=terrainCommand;
+        }
         auto pass=[MTLRenderPassDescriptor renderPassDescriptor];
         pass.colorAttachments[0].texture=drawable.texture;
         pass.colorAttachments[0].loadAction=MTLLoadActionDontCare;
         pass.colorAttachments[0].storeAction=MTLStoreActionStore;
-        auto command=[v.queue commandBuffer]; auto encoder=[command renderCommandEncoderWithDescriptor:pass];
+        auto encoder=[command renderCommandEncoderWithDescriptor:pass];
         [encoder setRenderPipelineState:v.pipeline];
         [encoder setFragmentBuffer:v.cells offset:0 atIndex:0];
         uint32_t grid[]={uint32_t(frame.width),uint32_t(frame.height)};
         [encoder setFragmentBytes:grid length:sizeof(grid) atIndex:1];
         [encoder setFragmentTexture:v.atlas atIndex:0];
+        [encoder setFragmentTexture:use3D?v.color3D:v.atlas atIndex:1];
+        [encoder setFragmentBytes:&backdrop length:sizeof(backdrop) atIndex:5];
+        uint32_t mode=use3D?(v.raw?2:1):0; [encoder setFragmentBytes:&mode length:sizeof(mode) atIndex:4];
         [encoder setFragmentBuffer:v.interface offset:0 atIndex:2];
         uint32_t uiGrid[]={uint32_t(interface.width),uint32_t(interface.height)};
         [encoder setFragmentBytes:uiGrid length:sizeof(uiGrid) atIndex:3];
