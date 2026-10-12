@@ -59,6 +59,7 @@ void Game::equipSelected() {
 }
 void Game::respawn() {
     if(hero.alive) return;
+    if(world.interior) leaveInterior();
     hero.alive=true; hero.hp=hero.maxHp; hero.mp=hero.maxMp; hero.pos={0,12}; hero.poison=hero.slow=hero.hurtTime=0; hero.cooldown.fill(0); hero.gold=std::max(0,hero.gold-25); velocity={};
     combat.areas.clear(); combat.projectiles.clear();
     for(size_t i=0;i<party.size();++i) { auto& e=party[i]; e.alive=true; e.hp=e.maxHp; e.mp=e.maxMp; e.pos=hero.pos+Vec2{float(i)*4-4,3}; }
@@ -67,11 +68,11 @@ void Game::respawn() {
 void Game::rewards() {
     for(auto& e:mobs) {
         if(!e.alive&&!e.rewarded) { const auto& def=data.enemies[size_t(e.archetype)]; e.rewarded=true; awardXP(def.xp*e.level); if(e.spawnSlot>=0) respawnAfter[{e.spawnChunkX,e.spawnChunkY,e.spawnSlot}]=time+world.config.respawnSeconds; loot.push_back({e.pos,def.item,def.gold}); if(e.id%3==0&&data.items.size()>7) loot.push_back({e.pos+Vec2{1,0},5+(e.id/3)%3,0}); message=def.name+" defeated. +"+std::to_string(def.xp*e.level)+" XP. E: collect loot"; }
-        if(!e.alive&&e.deadTime>world.config.respawnSeconds&&!e.summoned) { e.alive=true; e.hp=e.maxHp; e.pos=e.home; e.rewarded=false; e.poison=0; e.brain=Brain::Idle; }
+        if(!world.interior&&!e.alive&&e.deadTime>world.config.respawnSeconds&&!e.summoned) { e.alive=true; e.hp=e.maxHp; e.pos=e.home; e.rewarded=false; e.poison=0; e.brain=Brain::Idle; }
     }
     if(loot.size()>200) loot.erase(loot.begin(),loot.begin()+int(loot.size()-200));
 }
-std::vector<Entity*> Game::entities() { std::vector<Entity*> es; es.push_back(&hero); for(auto& e:party) es.push_back(&e); for(auto& e:mobs) es.push_back(&e); if(dragon.id==500) es.push_back(&dragon); return es; }
+std::vector<Entity*> Game::entities() { std::vector<Entity*> es; es.push_back(&hero); for(auto& e:party) es.push_back(&e); for(auto& e:mobs) es.push_back(&e); if(dragon.id==500&&!world.interior) es.push_back(&dragon); return es; }
 void Game::setScene(const std::string& name) {
     if(name=="grass") hero.pos={0,12}; else if(name=="water") hero.pos={0,34}; else if(name=="forest") hero.pos={-33,3}; else if(name=="ruins") hero.pos={0,-2}; else if(name=="boss") hero.pos={30,-17};
     world.focus(hero.pos);
@@ -84,15 +85,16 @@ void Game::input(const Input& in) {
     if(in.keys.find(char(27))!=std::string::npos||in.keys.find('p')!=std::string::npos) {
         screen=Screen::Paused; menuIndex=0; velocity={}; casts.clear(); return;
     }
-    if(in.keys.find('m')!=std::string::npos) { screen=Screen::Map; mapCenter=hero.pos; returnScreen=Screen::Playing; velocity={}; casts.clear(); return; }
+    if(in.keys.find('m')!=std::string::npos&&!world.interior) { screen=Screen::Map; mapCenter=hero.pos; returnScreen=Screen::Playing; velocity={}; casts.clear(); return; }
     if(in.heldMovement) { velocity={}; movementTime=0; }
     Vec2 direction{};
     for(char k:in.keys+in.movementKeys) {
         if(k=='q') quit=true;
-        if(k=='b'&&hero.alive) { setScene("boss"); message="The Dragon's hollow. Dodge red telegraphs."; }
+        if(k=='b'&&hero.alive&&!world.interior) { setScene("boss"); message="The Dragon's hollow. Dodge red telegraphs."; }
         if(k=='i') { inventoryMenu=!inventoryMenu; continue; }
         if(k=='r') respawn();
         if(k=='e') collectLoot();
+        if(k=='f') { interactPlace(); continue; }
         if(inventoryMenu) { if(k=='j'||k=='v') ++inventoryIndex; if(k=='k'||k=='^') --inventoryIndex; inventoryIndex=clamp(inventoryIndex,0,std::max(0,int(hero.inventory.size())-1)); if(k=='\r'||k=='\n') equipSelected(); continue; }
         if(k=='c') classMenu=!classMenu;
         if(k=='h') helpMenu=!helpMenu;
@@ -135,19 +137,23 @@ void Game::tick(float dt) {
     if(screen!=Screen::Playing) return;
     saveTimer+=dt;
     if(activeSave>=0&&saveTimer>=30) { saveTimer=0; if(!saveAdventure()) message=menuNotice; }
+    transition=std::max(0.f,transition-dt);
     world.focus(hero.pos);
+    if(!world.interior) {
     for(const auto& p:atlas.discover(hero.pos)) { awardXP(35); message="Discovered "+p.name+": "+atlas.types[size_t(p.type)].purpose; }
     spawnTimer-=dt;
     if(spawnTimer<=0||World::chunkAt(hero.pos)!=enemyCenter) { streamEnemies(); spawnTimer=1; }
     for(size_t i=0;i<landmarks.size();++i) if(!discovered[i]&&distance(hero.pos,landmarks[i].pos)<16) {
         discovered[i]=true; awardXP(150); message=std::string("Discovered ")+landmarks[i].name+" +150 XP";
     }
+    }
     time+=dt; movementTime-=dt; if(movementTime<=0) velocity={};
     if(hero.alive) {
         hero.pos=world.move(hero.pos,velocity*dt*(world.water(hero.pos)?.55f:1.f)*(hero.slow>0?.35f:1.f));
     }
     hero.velocity=velocity;
-    tickDragon(*this,dt);
+    if(!world.interior) tickDragon(*this,dt);
+    tickInterior(dt);
     auto es=entities(); combat.tick(dt,es,world,texts);
     for(int slot:casts) { auto error=combat.cast(hero,slot,aim,hero.target,es,data,world,texts); if(!error.empty()) message=error; }
     casts.clear();
@@ -173,22 +179,23 @@ void Game::render(Framebuffer& f,float ms,Framebuffer* interface) {
         else renderUI(f,ms);
         return;
     }
-    scene.begin(camera); world.render(scene,time); atlas.focus(hero.pos); atlas.render(scene,time);
+    scene.begin(camera); world.render(scene,time); if(!world.interior) { atlas.focus(hero.pos); atlas.render(scene,time); }
     for(const auto& e:party) if(e.alive) drawCharacter(scene,e.pos,e.color,time,length(e.velocity)>0,int(e.role));
     for(const auto& e:mobs) if(e.alive) {
         if(e.archetype==0) drawSkeleton(scene,e.pos,mix(e.color,{237,128,104},.55f),time); else drawCharacter(scene,e.pos,mix(e.color,{237,128,104},.55f),time,length(e.velocity)>0,int(e.role));
     }
     for(const auto& item:loot) scene.point(item.pos,.3f,{192,171,109},U'*',{0,0,1},.2f);
-    if(dragon.alive) drawDragon(scene,dragon.pos,time);
+    if(dragon.alive&&!world.interior) drawDragon(scene,dragon.pos,time);
     combat.render(scene,time);
     world.reflections(scene,time); scene.convert(f);
     if(hero.alive) playerAvatar(f,camera,hero,time);
     if(showNames) { nameLabel(f,camera,hero); for(const auto& e:party) nameLabel(f,camera,e,e.id==hero.target);
     for(const auto& e:mobs) nameLabel(f,camera,e,e.id==hero.target);
     for(const auto& item:loot) { Vec2 p=camera.project(item.pos); if(p.y>2&&p.y<f.height-5) f.text(int(p.x)-4,int(p.y)-1,data.items[size_t(item.item)].name,{151,139,111}); }
-    nameLabel(f,camera,dragon,dragon.id==hero.target);
+    if(!world.interior) nameLabel(f,camera,dragon,dragon.id==hero.target);
     }
-    atlas.labels(f,camera,hero.pos);
+    if(!world.interior) atlas.labels(f,camera,hero.pos);
+    if(transition>0) for(auto& cell:f.cells) cell.fg=cell.fg*(1-transition/.25f);
     floatingLabels(f,camera,texts);
     Vec2 cursor=camera.project(aim); f.put(int(cursor.x),int(cursor.y),U'+',white);
     if(interface) {
@@ -212,8 +219,8 @@ void Game::renderUI(Framebuffer& f,float ms) {
         if(f.width>90) f.text(2+i*slotWidth,f.height-3,std::to_string(int(a.cost))+" MP",muted);
     }
     f.text(2,f.height-2,message.substr(0,size_t(std::max(0,f.width-4))),muted);
-    if(showHelp) f.text(2,f.height-1,"WASD move  Mouse/arrows aim  1-6 cast  Tab target  C class  M map  Esc/P pause",{165,188,202});
-    f.text(2,f.height-5,std::string(world.region(hero.pos))+" | Lv "+std::to_string(hero.level)+" XP "+std::to_string(hero.xp)+"/"+std::to_string(100+hero.level*25)+(hero.testing?" | TEST POWER ON":""),{196,190,144});
+    if(showHelp) f.text(2,f.height-1,"WASD move  F interact  1-6 cast  Tab target  C class  M map  Esc/P pause",{165,188,202});
+    f.text(2,f.height-5,(interiorSite?atlas.place(*interiorSite).name:std::string(world.region(hero.pos)))+" | Lv "+std::to_string(hero.level)+" XP "+std::to_string(hero.xp)+"/"+std::to_string(100+hero.level*25)+(hero.testing?" | TEST POWER ON":""),{196,190,144});
     if(classMenu||helpMenu) {
         int w=std::min(66,f.width-4),x=(f.width-w)/2,y=std::max(2,f.height/2-7); box(f,x,y,w,14);
         f.text(x+2,y+1,classMenu?"CHOOSE YOUR CLASS":"ASHENMERE / controls",{222,201,148});

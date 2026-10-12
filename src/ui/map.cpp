@@ -25,6 +25,18 @@ void Game::drawMap(Framebuffer& f,int x,int y,int width,int height,Vec2 center,f
     mark(hero.pos,U'@',{246,248,255});
 }
 void Game::minimap(Framebuffer& f) const {
+    if(world.interior) {
+        if(f.width<85||f.height<30) return;
+        int x=f.width-26,y=3; box(f,x,y,25,11); f.text(x+2,y," INTERIOR ");
+        for(int row=0;row<8;++row) for(int col=0;col<23;++col) {
+            int xx=col*2,yy=row*3; char glyph=world.interior->at(xx,yy);
+            f.put(x+1+col,y+1+row,glyph,{131,153,173});
+        }
+        f.put(x+1+int(world.interior->entrance.x)/2,y+1+int(world.interior->entrance.y)/3,U'<',{241,211,131});
+        f.put(x+1+int(world.interior->chest.x)/2,y+1+int(world.interior->chest.y)/3,world.interior->peaceful?U'b':world.interior->opened?U'o':U'$',{241,211,131});
+        f.put(x+1+int(hero.pos.x)/2,y+1+int(hero.pos.y)/3,U'@',white);
+        f.text(x+1,y+9,"< exit  $ chest  b bed"); return;
+    }
     if(f.width<85||f.height<30) return; // Keep the existing HUD readable in small terminals.
     int w=25,h=11,x=f.width-w-1,y=3;
     box(f,x,y,w,h,{95,140,155}); f.text(x+2,y," N / MINIMAP ",{175,215,220});

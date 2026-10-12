@@ -61,7 +61,7 @@ void Atlas::render(Scene& s,float time) const {
     }
 }
 void Atlas::labels(Framebuffer& f,const Camera& c,Vec2 player) const {
-    for(const auto& site:nearby) if(distance(site.pos,player)<65) { Vec2 p=c.project(site.pos,9); f.text(int(p.x)-int(site.name.size()/2),int(p.y),site.name,{226,199,131}); }
+    for(const auto& site:nearby) if(distance(site.pos,player)<65) { Vec2 p=c.project(site.pos,9); f.text(int(p.x)-int(site.name.size()/2),int(p.y),site.name,{226,199,131}); if(distance(site.pos,player)<7) f.text(int(p.x)-8,int(p.y)+1,"F: enter / inspect",{174,205,219}); }
 }
 void Atlas::save(std::ostream& out) const {
     out<<"ATLAS 1\n"<<known.size()<<'\n'; for(auto id:known) out<<id.first<<' '<<id.second<<'\n';

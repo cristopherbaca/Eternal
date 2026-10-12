@@ -172,7 +172,7 @@ void Game::menuInput(const Input& input) {
         } else if(activate&&screen==Screen::Paused) {
             if(menuIndex==0) screen=Screen::Playing;
             else if(menuIndex==1) { returnScreen=screen; screen=Screen::Settings; }
-            else if(menuIndex==2) { returnScreen=screen; screen=Screen::Map; mapCenter=hero.pos; }
+            else if(menuIndex==2) { if(world.interior) { menuNotice="Leave the interior to open the world atlas."; return; } returnScreen=screen; screen=Screen::Map; mapCenter=hero.pos; }
             else if(menuIndex==3) { saveAdventure(); return; }
             else if(menuIndex==4) { if(!saveAdventure()) return; screen=Screen::Title; refreshSaves(); }
             else { if(!saveAdventure()) return; quit=true; }

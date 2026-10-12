@@ -6,8 +6,8 @@ Constraints: preserve the existing renderer, combat, class definitions, HUD/menu
 
 ## Phases
 1. **Complete (first playable slice)** — deterministic named points of interest, landmark silhouettes, connected roads/clearings, discovery/fog, minimap, pannable world map, debug location listing, save migration.
-2. **Next / starting** — enterable buildings/dungeons, bounded local simulation, day/night/weather, ambient animals.
-3. **Pending** — generated NPC identities/schedules, dialogue, trade/services; structured history/books and factions.
+2. **Partially complete** — enterable buildings/dungeons, bounded local simulation, day/night/weather, ambient animals.
+3. **Next / starting** — generated NPC identities/schedules, dialogue, trade/services; structured history/books and factions.
 4. **Pending** — quests and a playable town → dungeon → reward loop, quest/lore log and persistent state.
 5. **Pending** — broader crime, skills/perks, crafting, random equipment affixes and additional quest templates. These are not implemented by the existing game.
 
@@ -26,3 +26,10 @@ Constraints: preserve the existing renderer, combat, class definitions, HUD/menu
 - 163 checks pass; build clean; actual Metal capture inspected. 320x100 headless work ~2.5 ms/frame. A short native capture run submitted 51.3 fps (includes PNG readback); this is not a claim of 60 displayed fps.
 - Partial Priority 1: biome expansion, enterable interiors, climate and wildlife remain for subsequent pieces. Structures currently share a simple building silhouette; richer per-type silhouettes remain.
 - Budget re-check: no usage/context status API available; remaining allowance unknown.
+
+## Phase 2a result: interiors
+- F at a site's door/banner enters a separately generated interior. Peaceful buildings have furniture, torches and a rest point; hostile locations have connected rooms/corridors, traps, two guardians including a stronger warden, and a one-time reward chest. F at < exits. Quarter-second fade uses the existing framebuffer.
+- Existing combat is reused, overworld encounters are suspended/restored, and minimap switches to the local floor plan. Save v3 preserves current interior, outdoor return state and cleared chests; v1/v2 still load.
+- 174 checks pass, including connected floor plans, peaceful/hostile entry, guarded and non-repeatable loot, exit restoration and saving/loading inside a cleared dungeon.
+- Still partial: interiors use a shared family of connected layouts; furniture has no physics. Day/night/weather/wildlife and richer per-type architecture remain. Next: clock-driven population, dialogue/trading, and seeded lore/quests as a playable vertical slice.
+- Budget re-check: usage/context status remains unavailable; remaining allowance unknown.

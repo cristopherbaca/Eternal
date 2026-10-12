@@ -53,6 +53,7 @@ void World::streamChunks(Vec2 pos) {
     for(const auto& entry:chunks) trees.insert(trees.end(),entry.second.begin(),entry.second.end());
 }
 void World::focus(Vec2 pos) {
+    if(interior) return;
     bool changed=chunkAt(pos)!=centerChunk;
     streamChunks(pos);
     if(std::abs(pos.x-grassCenter.x)>=40||std::abs(pos.y-grassCenter.y)>=30) {
@@ -80,6 +81,7 @@ bool World::road(Vec2 p) const {
     return std::abs(lane-std::round(lane/256)*256)<2.2f;
 }
 bool World::water(Vec2 p) const {
+    if(interior) return false;
     if(placeClearing(p,terrainSeed)) return false;
     float edge=std::max(std::abs(p.x),std::abs(p.y));
     if(edge<180) return p.y>shore(p.x)&&p.y<85+5*std::sin(p.x*.07f)&&std::abs(p.x)<72;
@@ -92,6 +94,7 @@ const char* World::region(Vec2 p) const {
     const char* names[]={"Ashenmere Wilds","Frostwood","Ember Hills","Reedlands"}; return names[biome(p)];
 }
 bool World::blocked(Vec2 p) const {
+    if(interior) return interior->blocked(p);
     // Float-based entities have a documented precision envelope, not a 500-unit map wall.
     if(!std::isfinite(p.x)||!std::isfinite(p.y)||std::abs(p.x)>1000000||std::abs(p.y)>1000000) return true;
     if(std::abs(p.y+10)<.7f&&std::abs(p.x)<21&&std::abs(p.x)>3.3f) return true;
@@ -105,6 +108,7 @@ Vec2 World::move(Vec2 p,Vec2 d) const {
     if(!blocked({next.x,p.y})) p.x=next.x; if(!blocked({p.x,next.y})) p.y=next.y; return p;
 }
 void World::render(Scene& s,float time) const {
+    if(interior) { interior->render(s); return; }
     const Camera& c=s.camera;
     for(int y=0;y<c.height;++y) for(int x=0;x<c.width;++x) {
         Vec2 p=c.unproject({float(x),float(y)}); int gx=int(std::floor(p.x*3)),gy=int(std::floor(p.y*3)); float n=noise(gx,gy,terrainSeed);
@@ -168,6 +172,7 @@ void World::render(Scene& s,float time) const {
     }
 }
 void World::reflections(Scene& s,float time) const {
+    if(interior) return;
     // Reflect the completed scene around the projected shoreline, then distort.
     const auto source=s.pixels; const auto& c=s.camera;
     std::vector<float> banks(size_t(c.width*c.height),0);

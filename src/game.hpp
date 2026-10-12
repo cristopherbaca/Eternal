@@ -31,6 +31,11 @@ public:
     std::string seedText() const;
     bool frontEnd() const { return screen==Screen::Title||screen==Screen::Create||screen==Screen::Saves||screen==Screen::SaveActions||screen==Screen::DeleteSave||(screen==Screen::Settings&&returnScreen==Screen::Title); }
     std::vector<std::string> activeMods;
+    std::optional<PlaceId> interiorSite;
+    std::set<PlaceId> clearedPlaces;
+    Vec2 outsidePosition{}; std::vector<Entity> outsideMobs; std::vector<Loot> outsideLoot;
+    float transition=0;
+    void interactPlace(); void leaveInterior(); void tickInterior(float dt);
     Atlas atlas;
     Vec2 mapCenter{}; float mapStep=12; std::optional<PlaceId> mapSelected;
     void minimap(Framebuffer& frame) const;

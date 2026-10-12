@@ -262,5 +262,29 @@ int main() { try {
     Game mapGame; mapGame.atlas.discover(mapGame.hero.pos); Framebuffer mapFrame(160,50); mapGame.renderUI(mapFrame,16);
     bool playerMarker=false; for(int y=4;y<12;++y) for(int x=135;x<158;++x) playerMarker|=mapFrame.at(x,y).glyph==U'@';
     check(playerMarker,"minimap marks player without replacing existing HUD");
+    Interior dungeonA(17,false),dungeonB(17,false),dungeonC(18,false);
+    check(dungeonA.tiles==dungeonB.tiles,"interior floorplans reproduce from seed");
+    std::set<std::pair<int,int>> reached; std::vector<Vec2> queue{dungeonA.entrance};
+    for(size_t i=0;i<queue.size();++i) for(Vec2 d:{Vec2{1,0},{-1,0},{0,1},{0,-1}}) { Vec2 p=queue[i]+d; if(!dungeonA.blocked(p)&&reached.insert({int(p.x),int(p.y)}).second) queue.push_back(p); }
+    check(reached.count({int(dungeonA.chest.x),int(dungeonA.chest.y)}),"dungeon chest reachable from entry");
+    Game explorer; explorer.hero.pos=explorer.atlas.place({0,0}).pos; Vec2 outdoor=explorer.hero.pos;
+    size_t outdoorCount=explorer.mobs.size(); explorer.interactPlace();
+    check(explorer.world.interior&&explorer.world.interior->peaceful&&explorer.mobs.empty(),"village entrance opens a peaceful building");
+    explorer.leaveInterior(); check(!explorer.world.interior&&explorer.hero.pos.x==outdoor.x&&explorer.mobs.size()==outdoorCount,"exit restores outdoor state");
+    Place dangerous=explorer.atlas.place({0,0});
+    for(int x=1;explorer.atlas.types[size_t(dangerous.type)].inhabited||!explorer.atlas.types[size_t(dangerous.type)].interior;++x) dangerous=explorer.atlas.place({x,0});
+    explorer.hero.pos=dangerous.pos; explorer.interactPlace();
+    check(explorer.world.interior&&!explorer.world.interior->peaceful&&explorer.mobs.size()==2,"hostile site spawns dungeon guardians");
+    explorer.hero.pos=explorer.world.interior->chest; int chestGold=explorer.hero.gold;
+    explorer.interactPlace(); check(explorer.hero.gold==chestGold,"guardians protect dungeon chest");
+    for(auto& e:explorer.mobs) e.alive=false;
+    explorer.interactPlace(); check(explorer.clearedPlaces.count(dangerous.id)&&explorer.hero.gold==chestGold+60,"cleared dungeon chest grants reward once");
+    explorer.interactPlace(); check(explorer.hero.gold==chestGold+60,"chest cannot be farmed repeatedly");
+    auto interiorRoot=std::filesystem::temp_directory_path()/("er-interior-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    explorer.saveDirectory=interiorRoot; explorer.activeSave=0; check(explorer.saveAdventure(),"interior progress saved");
+    Game returning; returning.saveDirectory=interiorRoot;
+    check(returning.loadAdventure(0)&&returning.world.interior&&returning.world.interior->opened,"save resumes inside the same cleared dungeon");
+    returning.leaveInterior(); check(distance(returning.hero.pos,dangerous.pos)<.1f,"saved interior remembers outdoor return location");
+    std::filesystem::remove_all(interiorRoot);
     std::cout<<checks<<" checks passed: math, renderer, input, combat, AI, progression, boss, menus and deterministic replay\n";
 } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; } }
