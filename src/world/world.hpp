@@ -11,7 +11,7 @@ inline constexpr std::array<Landmark,5> landmarks{{
     {"Ashenmere Ruins",{0,12}}, {"Frostwood",{-120,-70}},
     {"Ember Hills",{130,-40}}, {"Reedlands",{-100,110}}, {"Dragon Hollow",{30,-30}}
 }};
-struct Tree { Vec2 pos; float height=8,radius=3; bool conifer=false; };
+struct Tree { Vec2 pos; float height=8,radius=3; bool conifer=false; int species=0; };
 class World {
 public:
     std::optional<Interior> interior;
@@ -22,7 +22,10 @@ public:
     explicit World(uint64_t seed=42,GenerationConfig config={});
     static ChunkKey chunkAt(Vec2 p) { return {int(std::floor(p.x/chunkSize)),int(std::floor(p.y/chunkSize))}; }
     size_t loadedChunkCount() const { return chunks.size(); }
-    struct Terrain { float height=0; Vec2 slope{}; };
+    struct Terrain { float height=0; Vec2 slope{}; float moisture=.5f,temperature=.5f,river=1; };
+    struct Climate { std::array<float,8> weights{}; int dominant=0; };
+    Climate climate(const Terrain& sample) const;
+    static const char* biomeName(int id);
     Terrain terrain(Vec2 p) const;
     float elevation(Vec2 p) const { return interior?0:terrain(p).height; }
     float visualHeight(Vec2 p) const { return elevation(p)*.12f; }
@@ -45,9 +48,12 @@ private:
     ChunkKey centerChunk{2147483647,2147483647};
     std::map<ChunkKey,std::vector<Tree>> chunks;
     static constexpr int terrainStep=4,terrainSide=chunkSize/terrainStep+1;
-    std::map<ChunkKey,std::array<float,terrainSide*terrainSide>> heights;
+    struct HeightSample { float height=0,moisture=.5f,temperature=.5f,river=1; };
+    HeightSample rawSample(Vec2 p) const;
+    using HeightGrid=std::array<HeightSample,terrainSide*terrainSide>;
+    std::map<ChunkKey,HeightGrid> heights;
     void buildHeight(ChunkKey key);
-    std::array<std::array<float,terrainSide*terrainSide>,49> heightLookup{};
+    std::vector<HeightGrid> heightLookup=std::vector<HeightGrid>(49);
     mutable std::vector<Vec2> surface;
     bool treeAt(int x,int y,Tree& tree) const;
     void streamChunks(Vec2 pos);

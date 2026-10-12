@@ -341,6 +341,24 @@ int main() { try {
     World climateWorld(918); std::set<int> climates;
     for(int y=-5000;y<=5000;y+=128) for(int x=-5000;x<=5000;x+=128) climates.insert(climateWorld.biome({float(x),float(y)}));
     check(climates.count(4)&&climates.count(5)&&climates.count(6),"procedural frontier includes desert mountain and coast climates");
+    check(climates.size()==8,"height moisture and temperature generate all eight biomes");
+    bool blended=false,waterFound=false; float worstWeightSum=0,worstEdge=0;
+    for(int i=0;i<200;++i) {
+        Vec2 p{float(i*39-3000),float(i*17-2100)};
+        auto first=climateWorld.climate(climateWorld.terrain(p)),near=climateWorld.climate(climateWorld.terrain(p+Vec2{.01f,0}));
+        float sum=0; int contributors=0;
+        for(int b=0;b<8;++b) { sum+=first.weights[size_t(b)]; contributors+=first.weights[size_t(b)]>.1f; worstEdge=std::max(worstEdge,std::abs(first.weights[size_t(b)]-near.weights[size_t(b)])); }
+        worstWeightSum=std::max(worstWeightSum,std::abs(sum-1)); blended|=contributors>1;
+        waterFound|=climateWorld.water(p);
+    }
+    check(blended&&worstWeightSum<.0001f&&worstEdge<.03f,"biome weights normalize and blend continuously at edges");
+    check(waterFound,"frontier contains height basins or river channels");
+    World plantWorld(42); plantWorld.focus({-3000,-3000}); size_t forestTrees=plantWorld.trees.size();
+    auto remembered=plantWorld.trees; plantWorld.focus({10000,10000}); plantWorld.focus({-3000,-3000});
+    bool matching=remembered.size()==plantWorld.trees.size();
+    for(size_t i=0;i<remembered.size()&&matching;++i) matching=remembered[i].species==plantWorld.trees[i].species&&distance(remembered[i].pos,plantWorld.trees[i].pos)<.001f;
+    check(matching&&forestTrees>0,"biome vegetation survives chunk unload and regeneration identically");
+
     check(worldHour(0)==8&&worldHour(45*16)==0,"world clock advances and wraps deterministically");
     check(weatherAt(42,360)==weatherAt(42,360),"weather is determined by seed and time");
     Environment wildlife; wildlife.tick(climateWorld,{300,300},{},0,0);

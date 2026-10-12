@@ -86,3 +86,11 @@ Reference videos from earlier messages are absent from their supplied Downloads 
 - Movement slows uphill, handles gentle descents and collision-tests long steps so cliffs cannot be skipped. No combat, class, HUD/menu, NPC or quest source logic changed. One render integration line grounds the existing camera.
 - 234 checks pass (six new terrain checks). Optimized 320×100 frontier benchmark: 8.24 ms mean, 8.65 ms p95, versus 14.59 ms mean before removing repeated projection/cache lookups. Inspected native Metal capture.
 - Budget remaining: unavailable. Next: blended climate biomes, vegetation/rocks, water readability and biome particles.
+
+## Terrain Step 2: blended biomes and natural detail
+- Added continuous height/moisture/temperature biome weights for meadow, deep forest, pine/frost forest, swamp, desert/dunes, rocky highlands, snowy mountain and beach/coast. Legacy landmarks keep their names; existing footer provides the region label without HUD changes.
+- Blended ground palettes and coordinate-dithered glyphs; varied grass density, tree species/density, snow caps, reeds/flowers/cacti, boulders and capped pollen/snow/dust/firefly motes. Preserved grass bending.
+- Brighter blue-green water, animated ripples, height basins and warped contour river channels preserve existing reflections and reference lake. No erosion/flow simulation.
+- 238 checks pass, plus native controls. Native 320×100, 240-frame dune run: 58.90 submissions/s at 60 target, 13.34 ms p95 work. Headless frontier: 10.78 ms mean / 12.19 ms p95. Native captures inspected and stored in docs/screenshots.
+- Terrain changes regenerate older worlds under the new algorithm; save schema remains compatible. All edits are terrain, camera integration, tests or documentation.
+- Budget remaining: unavailable. Both requested terrain steps are complete; no further gameplay systems were started. See docs/TERRAIN.md for reproducible biome coordinates and limits.

@@ -1,6 +1,21 @@
 #include "world/world.hpp"
 #include "worldgen/atlas.hpp"
 namespace er {
+namespace {
+float smooth(float a,float b,float v) { float t=clamp((v-a)/(b-a),0.f,1.f); return t*t*(3-2*t); }
+struct Palette { Color low,high; float grass,trees,rocks; char32_t plant,particle; };
+// IDs preserve existing climate-dependent terrain consumers; deep forest adds ID 7.
+constexpr Palette palettes[]={
+    {{51,86,48},{125,157,76},.83f,.45f,.025f,U'*',U'.'},
+    {{67,94,109},{148,181,185},.48f,.95f,.08f,U'+',U'*'},
+    {{94,85,76},{176,158,128},.25f,.12f,.27f,U'v',U'.'},
+    {{39,77,67},{91,143,101},.80f,.28f,.02f,U';',U'*'},
+    {{141,105,58},{220,184,109},.03f,.015f,.10f,U'Y',U':'},
+    {{124,149,168},{232,239,237},.03f,.06f,.22f,U'+',U'*'},
+    {{132,129,93},{212,198,139},.18f,.06f,.05f,U',',U'.'},
+    {{34,69,45},{86,131,70},.67f,1.4f,.06f,U'*',U'.'}
+};
+}
 float Camera::ground(Vec2 p) const { return terrain?terrain->visualHeight(p):0; }
 float World::rawHeight(Vec2 p) const {
     Vec2 warped=p+Vec2{terrainNoise(p,421,310)-.5f,terrainNoise(p,727,310)-.5f}*130;
@@ -17,12 +32,46 @@ float World::rawHeight(Vec2 p) const {
     // Keep the established ruins, boss arena and landmark arrival points accessible.
     float safe=clamp((distance(p,{0,-5})-38)/35,0.f,1.f);
     for(const auto& l:landmarks) safe=std::min(safe,clamp((distance(p,l.pos)-9)/18,0.f,1.f));
-    return h*safe;
+    return h*safe+6*(1-safe);
+}
+World::HeightSample World::rawSample(Vec2 p) const {
+    float h=rawHeight(p);
+    float moisture=terrainNoise(p,4001,config.biomeScale*.85f);
+    float temperature=terrainNoise(p,5003,config.biomeScale*1.25f)-std::max(0.f,h-14)*.009f;
+    // Smooth climate influences retain recognizable legacy regions without square borders.
+    float frost=1-smooth(25,140,distance(p,landmarks[1].pos));
+    float ember=1-smooth(20,125,distance(p,landmarks[2].pos));
+    float reeds=1-smooth(25,130,distance(p,landmarks[3].pos));
+    temperature=temperature*(1-frost)+.12f*frost; moisture=moisture*(1-frost)+.62f*frost;
+    temperature=temperature*(1-ember)+.72f*ember; moisture=moisture*(1-ember)+.32f*ember;
+    moisture=moisture*(1-reeds)+.95f*reeds;
+    float home=1-smooth(30,90,distance(p,{0,12}));
+    moisture=moisture*(1-home)+.36f*home; temperature=temperature*(1-home)+.56f*home;
+    float river=terrainNoise(p+Vec2{terrainNoise(p,6029,250)*90,0},6007,310)-.5f;
+    return {h,moisture,temperature,river};
+}
+World::Climate World::climate(const Terrain& s) const {
+    Climate c; float left=1;
+    auto take=[&](int id,float amount) { c.weights[size_t(id)]=left*clamp(amount,0.f,1.f); left-=c.weights[size_t(id)]; };
+    take(6,1-smooth(-1,4,s.height));
+    take(5,std::max(smooth(38,49,s.height),smooth(20,34,s.height)*(1-smooth(.18f,.45f,s.temperature))));
+    take(2,smooth(15,28,s.height)*.90f);
+    take(3,smooth(.65f,.86f,s.moisture)*(1-smooth(8,18,s.height)));
+    take(4,smooth(.45f,.70f,s.temperature)*(1-smooth(.24f,.48f,s.moisture)));
+    take(1,1-smooth(.24f,.45f,s.temperature));
+    take(7,smooth(.42f,.72f,s.moisture));
+    c.weights[0]=left;
+    for(int i=1;i<8;++i) if(c.weights[size_t(i)]>c.weights[size_t(c.dominant)]) c.dominant=i;
+    return c;
+}
+const char* World::biomeName(int id) {
+    const char* names[]={"Roadlands","Frostwood","Ember Hills","Reedlands","Sunscar Dunes","Highspire Snowfields","Saltwind Coast","Deepwood"};
+    return names[clamp(id,0,7)];
 }
 void World::buildHeight(ChunkKey key) {
     auto& grid=heights[key];
     for(int y=0;y<terrainSide;++y) for(int x=0;x<terrainSide;++x)
-        grid[size_t(y*terrainSide+x)]=rawHeight({float(key.first*chunkSize+x*terrainStep),float(key.second*chunkSize+y*terrainStep)});
+        grid[size_t(y*terrainSide+x)]=rawSample({float(key.first*chunkSize+x*terrainStep),float(key.second*chunkSize+y*terrainStep)});
 }
 World::Terrain World::terrain(Vec2 p) const {
     if(interior) return {};
@@ -31,16 +80,17 @@ World::Terrain World::terrain(Vec2 p) const {
     const auto* grid=(cx>=0&&cx<7&&cy>=0&&cy<7)?&heightLookup[size_t(cy*7+cx)]:nullptr;
     int x=int(std::floor(p.x/terrainStep)),y=int(std::floor(p.y/terrainStep));
     float u=p.x/terrainStep-x,v=p.y/terrainStep-y;
-    float a,b,c,d;
+    HeightSample a,b,c,d;
     if(grid) {
         int ix=x-key.first*(chunkSize/terrainStep),iy=y-key.second*(chunkSize/terrainStep);
         const auto& g=*grid; size_t i=size_t(iy*terrainSide+ix);
         a=g[i]; b=g[i+1]; c=g[i+terrainSide]; d=g[i+terrainSide+1];
     } else { // Queries outside the working set use the identical global lattice.
-        a=rawHeight({float(x*terrainStep),float(y*terrainStep)}); b=rawHeight({float((x+1)*terrainStep),float(y*terrainStep)});
-        c=rawHeight({float(x*terrainStep),float((y+1)*terrainStep)}); d=rawHeight({float((x+1)*terrainStep),float((y+1)*terrainStep)});
+        a=rawSample({float(x*terrainStep),float(y*terrainStep)}); b=rawSample({float((x+1)*terrainStep),float(y*terrainStep)});
+        c=rawSample({float(x*terrainStep),float((y+1)*terrainStep)}); d=rawSample({float((x+1)*terrainStep),float((y+1)*terrainStep)});
     }
-    return {(a+(b-a)*u)*(1-v)+(c+(d-c)*u)*v,{((b-a)*(1-v)+(d-c)*v)/terrainStep,((c-a)*(1-u)+(d-b)*u)/terrainStep}};
+    auto blend=[&](float HeightSample::*field) { float aa=a.*field,bb=b.*field,cc=c.*field,dd=d.*field; return (aa+(bb-aa)*u)*(1-v)+(cc+(dd-cc)*u)*v; };
+    return {blend(&HeightSample::height),{((b.height-a.height)*(1-v)+(d.height-c.height)*v)/terrainStep,((c.height-a.height)*(1-u)+(d.height-b.height)*u)/terrainStep},blend(&HeightSample::moisture),blend(&HeightSample::temperature),blend(&HeightSample::river)};
 }
 
 void World::tick(float dt) {
@@ -62,26 +112,18 @@ float World::terrainNoise(Vec2 p,uint32_t salt,float scale) const {
     float a=noise(x,y,terrainSeed+salt),b=noise(x+1,y,terrainSeed+salt),c=noise(x,y+1,terrainSeed+salt),d=noise(x+1,y+1,terrainSeed+salt);
     return (a+(b-a)*u)*(1-v)+(c+(d-c)*u)*v;
 }
-int World::biome(Vec2 p) const {
-    if(std::abs(p.x)<180&&std::abs(p.y)<180) {
-        if(p.x<-65&&p.y<20) return 1;
-        if(p.x>65) return 2;
-        if(p.y>70) return 3;
-        return 0;
-    }
-    float climate=terrainNoise(p,991,config.biomeScale);
-    float elevation=terrainNoise(p,1889,config.biomeScale*1.7f);
-    if(elevation>.72f) return 5;
-    if(elevation<.24f) return 6;
-    if(climate>.74f) return 4;
-    return climate<.3f?1:climate>.7f?2:terrainNoise(p,157,config.biomeScale)<.4f?3:0;
-}
+int World::biome(Vec2 p) const { return climate(terrain(p)).dominant; }
+
 bool World::treeAt(int x,int y,Tree& tree) const {
     if(config.treeDensity<=0||noise(x,y,terrainSeed+8)>config.treeDensity) return false;
     Vec2 p{float(x*8)+noise(x,y,terrainSeed)*6,float(y*8)+noise(y,x,terrainSeed+1)*6};
     for(const auto& landmark:landmarks) if(distance(p,landmark.pos)<7) return false;
     if(placeClearing(p,terrainSeed)||water(p)||road(p)||(std::abs(p.x)<23&&p.y>-24&&p.y<4)||distance(p,{0,12})<9||distance(p,{30,-25})<16) return false;
-    tree={p,6+noise(x,y,terrainSeed+3)*7,2+noise(y,x,terrainSeed+9)*2,biome(p)==1||noise(x,y,terrainSeed+4)>.6f};
+    auto weights=climate(terrain(p)); float density=0;
+    for(int i=0;i<8;++i) density+=weights.weights[size_t(i)]*palettes[i].trees;
+    if(noise(x,y,terrainSeed+67)>density||length(terrain(p).slope)>.85f) return false;
+    tree={p,6+noise(x,y,terrainSeed+3)*7,2+noise(y,x,terrainSeed+9)*2,weights.dominant==1||weights.dominant==5,weights.dominant};
+    if(tree.species==3) { tree.height*=.75f; tree.radius*=1.15f; }
     return true;
 }
 void World::streamChunks(Vec2 pos) {
@@ -135,17 +177,19 @@ bool World::road(Vec2 p) const {
 bool World::water(Vec2 p) const {
     if(interior) return false;
     if(placeClearing(p,terrainSeed)) return false;
-    float edge=std::max(std::abs(p.x),std::abs(p.y));
-    if(edge<180) return p.y>shore(p.x)&&p.y<85+5*std::sin(p.x*.07f)&&std::abs(p.x)<72;
     if(road(p)) return false;
-    float river=p.x-std::round(p.x/512)*512-45*std::sin(p.y*.012f);
-    if(edge>256&&std::abs(river)<3) return true;
-    float blend=clamp((edge-180)/60,0.f,1.f);
-    return 1-blend+blend*terrainNoise(p,317,config.biomeScale*.7f)<config.lakeThreshold;
+    // Keep the reference lake; fade in height-derived frontier basins and river beds.
+    float edge=std::max(std::abs(p.x),std::abs(p.y));
+    if(edge<140) return p.y>shore(p.x)&&p.y<85+5*std::sin(p.x*.07f)&&std::abs(p.x)<72;
+    auto land=terrain(p);
+    float extent=smooth(140,230,edge);
+    float level=-2+(config.lakeThreshold-.3f)*16;
+    return land.height<level-(1-extent)*50||(extent>.5f&&land.height<20&&std::abs(land.river)<.010f+land.moisture*.008f);
 }
 const char* World::region(Vec2 p) const {
     if(distance(p,{30,-30})<25) return "Dragon Hollow";
-    const char* names[]={"Ashenmere Wilds","Frostwood","Ember Hills","Reedlands","Sunscar Desert","Highspire Mountains","Saltwind Coast"}; return names[biome(p)];
+    for(const auto& landmark:landmarks) if(distance(p,landmark.pos)<40) return landmark.name;
+    return biomeName(biome(p));
 }
 bool World::blocked(Vec2 p) const {
     if(interior) return interior->blocked(p);
@@ -183,7 +227,12 @@ void World::render(Scene& s,float time) const {
         Normal normal{-land.slope.x*inv,-land.slope.y*inv,inv};
         float relief=clamp(.87f+land.height*.012f,.60f,1.25f);
         float shadow=shadows[size_t(clamp(int(p.y-grassCenter.y)+70,0,140)*181+clamp(int(p.x-grassCenter.x)+90,0,180))];
-        if(water(p)) { s.put(x,y,p,0,{17,28,43},n>.95f?U'~':U' ',p.y-10); continue; }
+        if(water(p)) {
+            float wave=.5f+.5f*std::sin(p.x*.42f+p.y*.28f-time*1.4f);
+            bool river=land.height>-2;
+            Color blue=mix({28,64,88},{73,139,153},wave*.65f+(river?.2f:0));
+            s.put(x,y,p,0,blue,wave>.86f?U'~':n>.55f?U'-':U'.',p.y-10); continue;
+        }
         if(road(p)) {
             char32_t glyph=U"o0QOa.:"[int(n*6.99f)]; Color color=mix({80,81,88},{145,139,129},n);
             if((gy%4+4)%4==0) { glyph=U'-'; color=color*.65f; }
@@ -195,13 +244,20 @@ void World::render(Scene& s,float time) const {
         char32_t blade=wind>.45f?U'/':wind<-.45f?U'\\':U'|'; if(n<.2f) blade=U','; else if(n>.97f) blade=U'.';
         if(length(bend)>.55f) blade=std::abs(bend.x)>.3f?U'-':U',';
         Color color=n>.97f?Color{166,192,169}:mix({30,50,43},{69,97,70},n);
-        int climate=biome(p);
-        if(climate==2) color=mix(color,{135,95,62},.4f);
-        else if(climate==1) color=mix(color,{106,159,178},.35f);
-        else if(climate==3) color=mix(color,{46,111,93},.25f);
-        else if(climate==4) { color=mix({101,82,52},{172,149,104},n); blade=U'.'; }
-        else if(climate==5) { color=mix({71,83,99},{155,163,173},n); blade=U'^'; }
-        else if(climate==6) { color=mix({73,113,123},{149,162,145},n); blade=U','; }
+        auto ecology=climate(land); int climate=ecology.dominant;
+        float choice=noise(gx,gy,terrainSeed+1231),sum=0;
+        for(int i=0;i<8;++i) { sum+=ecology.weights[size_t(i)]; if(choice<=sum) { climate=i; break; } }
+        float red=0,green=0,blue=0,grass=0;
+        for(int i=0;i<8;++i) { float w=ecology.weights[size_t(i)]; Color col=mix(palettes[i].low,palettes[i].high,n);
+            red+=col.r*w; green+=col.g*w; blue+=col.b*w; grass+=palettes[i].grass*w;
+        }
+        color=rgb(red,green,blue);
+        if(n>grass) blade=U".,:`"[int(n*3.99f)];
+        // Ordered coordinate noise mixes glyphs at ecotones without animated boundary shimmer.
+        if(climate==4) { float dune=.5f+.5f*std::sin(p.x*.12f+p.y*.035f+land.height*.3f); color=color*(.78f+dune*.28f); blade=dune>.8f?U'~':U'.'; }
+        if(climate==5) blade=n>.92f?U'*':n>.6f?U':':U'.';
+        if(climate==3&&n<grass) blade=U";|,|"[int(n*3.99f)];
+        if(n>.992f) { blade=palettes[climate].plant; color=mix(color,climate==0?Color{234,196,107}:Color{177,187,157},.7f); }
         float rock=clamp((slope-.32f)/.75f,0.f,1.f);
         color=mix(color,mix({75,82,94},{169,170,159},n),rock);
         if(rock>.4f&&n<rock) blade=slope>1.15f?U"|/\\#"[int(n*3.99f)]:(land.slope.x*land.slope.y>0?U'/':U'\\');
@@ -232,6 +288,38 @@ void World::render(Scene& s,float time) const {
         for(int i=-2;i<=2;++i) s.point(landmark.pos+Vec2{float(i),0},.2f,{179,162,115},U'=');
         for(int z=0;z<5;++z) s.point(landmark.pos, float(z),{197,176,127},z==4?U'*':U'|');
     }
+    // World-anchored boulders and understory, culled to the viewport. No persistent entities.
+    Vec2 lo=c.unproject({-12,float(c.height+20)}),hi=c.unproject({float(c.width+12),-20});
+    int minX=int(std::floor(std::min(lo.x,hi.x)/8)),maxX=int(std::ceil(std::max(lo.x,hi.x)/8));
+    int minY=int(std::floor(std::min(lo.y,hi.y)/8)),maxY=int(std::ceil(std::max(lo.y,hi.y)/8));
+    for(int yy=minY;yy<=maxY;++yy) for(int xx=minX;xx<=maxX;++xx) {
+        float n=noise(xx,yy,terrainSeed+8191); Vec2 p{xx*8+noise(xx,yy,terrainSeed+89)*6,yy*8+noise(xx,yy,terrainSeed+97)*6};
+        auto ec=climate(terrain(p)); float rock=0; for(int b=0;b<8;++b) rock+=ec.weights[size_t(b)]*palettes[b].rocks;
+        if(road(p)||water(p)||placeClearing(p,terrainSeed)) continue;
+        if(n<rock) {
+            float size=.6f+noise(xx,yy,terrainSeed+79)*1.1f;
+            Color stone=ec.dominant==4?Color{177,125,78}:ec.dominant==5?Color{198,212,219}:Color{129,142,148};
+            s.point(p+Vec2{-size*.6f,0},size*.4f,stone*.65f,U'/',{-.7f,0,.5f});
+            s.point(p,size,stone,U'^',{-.3f,-.5f,.8f});
+            s.point(p+Vec2{size*.6f,0},size*.4f,stone*.85f,U'\\',{.7f,0,.5f});
+        } else if(n>.94f) {
+            int b=ec.dominant; Color plant=b==4?Color{121,151,82}:b==0?Color{224,168,115}:palettes[b].high;
+            s.point(p,.7f,plant,palettes[b].plant);
+            if(b==4) { s.point(p,1.5f,plant,U'Y'); s.point(p,.2f,plant,U'|'); }
+        }
+    }
+    // At most 48 ambient motes, anchored to world cells; no accumulating particle list.
+    int ax=int(std::floor(c.center.x/20)),ay=int(std::floor(c.center.y/20));
+    for(int y=-3;y<3;++y) for(int x=-4;x<4;++x) {
+        float n=noise(ax+x,ay+y,terrainSeed+9001);
+        Vec2 p{(ax+x)*20+n*18,(ay+y)*20+noise(ay+y,ax+x,terrainSeed+9007)*18};
+        int b=biome(p); float phase=time*(b==1||b==5?.6f:.24f)+n*6;
+        p.x+=std::sin(phase)*2; p.y+=std::cos(phase*.7f);
+        float height=b==1||b==5?4-std::fmod(time*.7f+n*4,4.f):1.5f+std::sin(phase);
+        Color color=b==3?Color{175,213,100}:b==4?Color{174,136,85}:b==1||b==5?Color{177,206,224}:Color{183,173,113};
+        float intensity=.45f+.35f*std::sin(phase*2);
+        s.point(p,height,color*intensity,palettes[b].particle,{},b==3?.5f:0);
+    }
     for(const Tree& t:trees) {
         Vec2 base=c.project(t.pos); float ht=t.height*c.scale()*1.5f,rx=t.radius*c.scale()*2.2f;
         if(base.x+rx<0||base.x-rx>c.width||base.y<0||base.y-ht>c.height) continue;
@@ -240,8 +328,10 @@ void World::render(Scene& s,float time) const {
             if(t.conifer) { float tier=std::fmod(v*4,1.f); leaf=v>.16f&&std::abs(u)<(1-v)*(.65f+.5f*tier); }
             else { float q=(v-.61f)/.37f; leaf=u*u+q*q<1+n*.2f; }
             if(leaf&&n>.08f) {
-                Color col=t.conifer?mix({40,64,84},{97,140,156},n):mix({27,48,39},{80,119,76},n);
-                char32_t glyph=t.conifer?U'^':U"oaOQd0"[int(n*5.99f)];
+                Color col=t.conifer?mix({48,81,95},{130,170,170},n):mix({32,62,40},{100,147,76},n);
+                if(t.species==3) col=mix(col,{89,131,104},.3f);
+                if(t.species==5||(t.species==1&&v>.68f&&n>.5f)) col=mix(col,{198,215,219},.65f);
+                char32_t glyph=t.conifer?U'^':t.species==3?U';':U"oaOQd0"[int(n*5.99f)];
                 s.put(xx,yy,t.pos,v*t.height,col,glyph,t.pos.y+v*.1f,{u,-.3f,.8f});
             } else if(std::abs(u)<.13f&&v<.65f) s.put(xx,yy,t.pos,v*t.height,{73,76,67},U'|',t.pos.y,{0,-1,.3f});
         }
