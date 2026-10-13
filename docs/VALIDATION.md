@@ -26,8 +26,6 @@ A native 180-frame, 320×100 boss demo recorded 57.132 submitted FPS, 5.055 ms m
 
 The updated player/terrain palette was reviewed from an actual framebuffer capture: `docs/screenshots/12-player-contrast.png`. Visible refresh rate and physical keyboard feel still need confirmation on the user's display; automated checks cover the movement state transitions.
 
-
-
 ## Procedural world and mods
 
 122 checks pass after adding seed determinism, negative chunk coordinates, regeneration after unload, visit-order independence, bounded caches, varied biomes, remote encounters, cooldown-preserving enemy unload/respawn, stable entity IDs, ordered mods, content overlays and invalid mod rejection. The terminal integration suite also passes.
@@ -35,7 +33,6 @@ The updated player/terrain palette was reviewed from an actual framebuffer captu
 A 300-frame, 320×100 headless run at (4096, -4096) with Wild Frontier averaged 2.761 ms CPU work (2.791 ms p95). A second remote run at (-12000, 8000) averaged 2.703 ms. These are renderer/simulation throughput measurements, not visible terminal FPS. A framebuffer from the modded frontier was inspected.
 
 The earlier fixed 500×500 world described below is superseded by 64-unit streamed chunks, with a 49-chunk cache and at most 100 active mobs. The supported numeric envelope is ±1,000,000 world units. Native/scripted executable mods and persistent edited chunks are not implemented; mods are validated data packs loaded on startup.
-
 
 ## Current single-player build (2026-10-11)
 
@@ -46,7 +43,6 @@ The POSIX smoke suite passes output backpressure, delayed acknowledgements, inpu
 The world now spans 500×500 units with five discoverable landmarks. Physics and shadows use a moving local grid to avoid scaling per-frame grass simulation with the total world area. Standard sessions start at level 1, solo, with testing powers enabled by default; preferences can override testing mode. Settings persist, but progression/world state does not persist after exit.
 
 The earlier measurements below describe previous checkpoints, including the now-removed networking implementation.
-
 
 Local validation: macOS ARM64, Apple Clang, C++17, Release build, compatible macOS 26.5 SDK. Last source/build review: 2026-10-11.
 

@@ -14,16 +14,16 @@ Existing saves still load; their regenerated terrain now follows this improved a
 
 Use seed 42, no mods, and `--position X Y`:
 
-| Biome | X | Y |
-| --- | ---: | ---: |
-| Meadow / Roadlands | -2584 | -3000 |
-| Deep forest | -3000 | -3000 |
-| Pine / frost forest | -2648 | -3000 |
-| Swamp | -2872 | -3000 |
-| Desert / dunes | -984 | -3000 |
-| Rocky highlands | -2712 | -3000 |
-| Snowy mountain | -2040 | -3000 |
-| Beach / coast | -2936 | -3000 |
+| Biome                      |     X |     Y |
+| -------------------------- | ----: | ----: |
+| Meadow / Roadlands         | -2584 | -3000 |
+| Deep forest                | -3000 | -3000 |
+| Pine / frost forest        | -2648 | -3000 |
+| Swamp                      | -2872 | -3000 |
+| Desert / dunes             |  -984 | -3000 |
+| Rocky highlands            | -2712 | -3000 |
+| Snowy mountain             | -2040 | -3000 |
+| Beach / coast              | -2936 | -3000 |
 | River through frost forest | -2632 | -3000 |
 
 Example: `./build/eternal_rpg --window --demo --no-mods --seed 42 --position -984 -3000`

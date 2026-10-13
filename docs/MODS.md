@@ -30,15 +30,15 @@ Enabled-file order comes first, then command-line packs. Duplicate IDs are loade
 
 `world.txt` is optional. Omitted fields keep the previous pack's value or the default.
 
-| Key | Default | Allowed range | Effect |
-| --- | --- | --- | --- |
-| `tree_density` | 0.62 | 0–1 | Chance of a tree at each eligible 8-unit lattice site |
-| `lake_threshold` | 0.28 | 0–0.6 | Larger values produce more frontier water |
-| `biome_scale` | 192 | 64–1024 | Size of smooth climate/lake features |
-| `enemies_per_chunk` | 3 | Integer 0–8 | Candidate enemy spawns per 64×64 chunk |
-| `respawn_seconds` | 45 | 5–600 | Delay before defeated enemies replenish |
-| `level_distance` | 120 | 30–10000 | Distance per additional enemy level; caps at level 100 |
-| `seed_salt` | 0 | Integer 0–4294967295 | Mixed with both halves of the selected world seed |
+| Key                 | Default | Allowed range        | Effect                                                 |
+| ------------------- | ------- | -------------------- | ------------------------------------------------------ |
+| `tree_density`      | 0.62    | 0–1                  | Chance of a tree at each eligible 8-unit lattice site  |
+| `lake_threshold`    | 0.28    | 0–0.6                | Larger values produce more frontier water              |
+| `biome_scale`       | 192     | 64–1024              | Size of smooth climate/lake features                   |
+| `enemies_per_chunk` | 3       | Integer 0–8          | Candidate enemy spawns per 64×64 chunk                 |
+| `respawn_seconds`   | 45      | 5–600                | Delay before defeated enemies replenish                |
+| `level_distance`    | 120     | 30–10000             | Distance per additional enemy level; caps at level 100 |
+| `seed_salt`         | 0       | Integer 0–4294967295 | Mixed with both halves of the selected world seed      |
 
 For example:
 

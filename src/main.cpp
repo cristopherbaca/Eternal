@@ -11,256 +11,396 @@
 #include <numeric>
 #include <thread>
 
-int main(int argc,char** argv) {
-    try {
-        bool headless=false,demo=false,native=false,normal=false,fpsExplicit=false,classExplicit=false,noMods=false,listMods=false,positionSet=false,worldReport=false;
-        bool mute=false;
-        bool renderer2D=false,raw3D=false,thirdPerson=false;
+int main(int argc, char **argv)
+{
+    try
+    {
+        bool headless = false, demo = false, native = false, normal = false, fpsExplicit = false, classExplicit = false, noMods = false, listMods = false, positionSet = false, worldReport = false;
+        bool mute = false;
+        bool renderer2D = false, raw3D = false, thirdPerson = false;
         er::Vec2 startPosition{};
-        int frames=0,w=200,h=60,fps=60;
-        uint64_t seed=42;
-        std::string dump,stats,scene="grass",className="Mage",dataPath,modsPath,name="Senje";
+        int frames = 0, w = 200, h = 60, fps = 60;
+        uint64_t seed = 42;
+        std::string dump, stats, scene = "grass", className = "Mage", dataPath, modsPath, name = "Senje";
         std::vector<std::string> modIds;
-        for(int i=1;i<argc;++i) {
-            std::string arg=argv[i];
-            auto value=[&]() -> std::string { if(i+1>=argc) throw std::runtime_error("Missing value for "+arg); return argv[++i]; };
-            if(arg=="--headless"||arg=="--benchmark") headless=true;
-            else if(arg=="--mute") mute=true;
-            else if(arg=="--window") native=true;
-            else if(arg=="--renderer-2d") renderer2D=true;
-            else if(arg=="--third-person") thirdPerson=true;
-            else if(arg=="--raw-3d") raw3D=true;
-            else if(arg=="--world-report") worldReport=true;
-            else if(arg=="--demo") demo=true;
-            else if(arg=="--frames") frames=std::stoi(value());
-            else if(arg=="--fps") { fps=std::stoi(value()); fpsExplicit=true; }
-            else if(arg=="--scene") scene=value();
-            else if(arg=="--normal") normal=true;
-            else if(arg=="--name") name=value().substr(0,20);
-            else if(arg=="--seed") seed=std::stoull(value());
-            else if(arg=="--class") { className=value(); classExplicit=true; }
-            else if(arg=="--position") { startPosition.x=std::stof(value()); startPosition.y=std::stof(value()); positionSet=true; }
-            else if(arg=="--mod") modIds.push_back(value());
-            else if(arg=="--mods-dir") modsPath=value();
-            else if(arg=="--no-mods") noMods=true;
-            else if(arg=="--list-mods") listMods=true;
-            else if(arg=="--data") dataPath=value();
-            else if(arg=="--dump") dump=value();
-            else if(arg=="--stats") stats=value();
-            else if(arg=="--width") w=std::stoi(value());
-            else if(arg=="--height") h=std::stoi(value());
-            else if(arg=="--help") {
-                std::cout<<"Eternal - ASCII adventure\n  --mute disables synthesized sound\n"
-                    "WASD move, Shift sprint, Space jump, click/1 primary, 1-6 abilities\n"
-                    "Tab target, C class, I inventory, E loot, B boss, R respawn, M map, Esc/P pause, Q quit\n"
-                    "--scene grass|forest|ruins|water|boss  --class Warrior|Mage|Archer|Cleric|Rogue\n"
-                    "--window (macOS Metal perspective ASCII window), --raw-3d, --renderer-2d\n"
-                    "3D: first-person mouse look, WASD walk, Esc release mouse; --third-person for orbit\n"
-                    "--seed N  --name NAME  --fps 60  --data DIR  --demo\n"
-                    "--mod ID --mods-dir DIR --no-mods --list-mods --position X Y\n"
-                    "--world-report lists generated sites, residents and history for the seed\n"
-                    "--normal disables powerful testing mode\n"
-                    "--headless --frames N --width 200 --height 60 --dump frame.json --stats metrics.json\n"
-                    "--benchmark implies --headless; headless defaults to 600 deterministic ticks.\n";
+        for (int i = 1; i < argc; ++i)
+        {
+            std::string arg = argv[i];
+            auto value = [&]() -> std::string
+            { if(i+1>=argc) throw std::runtime_error("Missing value for "+arg); return argv[++i]; };
+            if (arg == "--headless" || arg == "--benchmark")
+                headless = true;
+            else if (arg == "--mute")
+                mute = true;
+            else if (arg == "--window")
+                native = true;
+            else if (arg == "--renderer-2d")
+                renderer2D = true;
+            else if (arg == "--third-person")
+                thirdPerson = true;
+            else if (arg == "--raw-3d")
+                raw3D = true;
+            else if (arg == "--world-report")
+                worldReport = true;
+            else if (arg == "--demo")
+                demo = true;
+            else if (arg == "--frames")
+                frames = std::stoi(value());
+            else if (arg == "--fps")
+            {
+                fps = std::stoi(value());
+                fpsExplicit = true;
+            }
+            else if (arg == "--scene")
+                scene = value();
+            else if (arg == "--normal")
+                normal = true;
+            else if (arg == "--name")
+                name = value().substr(0, 20);
+            else if (arg == "--seed")
+                seed = std::stoull(value());
+            else if (arg == "--class")
+            {
+                className = value();
+                classExplicit = true;
+            }
+            else if (arg == "--position")
+            {
+                startPosition.x = std::stof(value());
+                startPosition.y = std::stof(value());
+                positionSet = true;
+            }
+            else if (arg == "--mod")
+                modIds.push_back(value());
+            else if (arg == "--mods-dir")
+                modsPath = value();
+            else if (arg == "--no-mods")
+                noMods = true;
+            else if (arg == "--list-mods")
+                listMods = true;
+            else if (arg == "--data")
+                dataPath = value();
+            else if (arg == "--dump")
+                dump = value();
+            else if (arg == "--stats")
+                stats = value();
+            else if (arg == "--width")
+                w = std::stoi(value());
+            else if (arg == "--height")
+                h = std::stoi(value());
+            else if (arg == "--help")
+            {
+                std::cout << "Eternal - ASCII adventure\n  --mute disables synthesized sound\n"
+                             "WASD move, Shift sprint, Space jump, click/1 primary, 1-6 abilities\n"
+                             "Tab target, C class, I inventory, E loot, B boss, R respawn, M map, Esc/P pause, Q quit\n"
+                             "--scene grass|forest|ruins|water|boss  --class Warrior|Mage|Archer|Cleric|Rogue\n"
+                             "--window (macOS Metal perspective ASCII window), --raw-3d, --renderer-2d\n"
+                             "3D: first-person mouse look, WASD walk, Esc release mouse; --third-person for orbit\n"
+                             "--seed N  --name NAME  --fps 60  --data DIR  --demo\n"
+                             "--mod ID --mods-dir DIR --no-mods --list-mods --position X Y\n"
+                             "--world-report lists generated sites, residents and history for the seed\n"
+                             "--normal disables powerful testing mode\n"
+                             "--headless --frames N --width 200 --height 60 --dump frame.json --stats metrics.json\n"
+                             "--benchmark implies --headless; headless defaults to 600 deterministic ticks.\n";
                 return 0;
-            } else throw std::runtime_error("Unknown option: "+arg+" (see --help)");
+            }
+            else
+                throw std::runtime_error("Unknown option: " + arg + " (see --help)");
         }
-        if(frames<0||frames>10000000||w<1||w>500||h<1||h>180||fps<20||fps>240)
+        if (frames < 0 || frames > 10000000 || w < 1 || w > 500 || h < 1 || h > 180 || fps < 20 || fps > 240)
             throw std::runtime_error("Invalid dimensions/frame limit/FPS (width 1..500, height 1..180, FPS 20..240)");
-        if(scene!="grass"&&scene!="forest"&&scene!="ruins"&&scene!="water"&&scene!="boss")
-            throw std::runtime_error("Unknown scene: "+scene);
-        if(positionSet&&(!std::isfinite(startPosition.x)||!std::isfinite(startPosition.y)||std::abs(startPosition.x)>999000||std::abs(startPosition.y)>999000))
+        if (scene != "grass" && scene != "forest" && scene != "ruins" && scene != "water" && scene != "boss")
+            throw std::runtime_error("Unknown scene: " + scene);
+        if (positionSet && (!std::isfinite(startPosition.x) || !std::isfinite(startPosition.y) || std::abs(startPosition.x) > 999000 || std::abs(startPosition.y) > 999000))
             throw std::runtime_error("--position must be finite and within +/-999000 world units");
-        auto mods=er::loadMods(modsPath,modIds,noMods);
-        if(worldReport) {
-            er::Atlas atlas(uint32_t(seed)^er::hash(uint32_t(seed>>32))^mods.generation.seedSalt,dataPath);
-            std::cout<<"World "<<seed<<" / use --position X Y --demo to inspect a location\n";
-            for(int y=-2;y<=2;++y) for(int x=-2;x<=2;++x) { auto p=atlas.place({x,y}); std::cout<<p.name<<" | "<<p.pos.x<<", "<<p.pos.y<<" | "<<atlas.types[size_t(p.type)].purpose<<'\n'; }
-            er::Population people(dataPath); er::Chronicle history(atlas,people,dataPath);
-            for(size_t i=0;i<history.events.size();++i) std::cout<<history.account(int(i))<<'\n';
-            for(int y=-2;y<=2;++y) for(int x=-2;x<=2;++x) { auto site=atlas.place({x,y}); if(atlas.types[size_t(site.type)].inhabited) for(int i=0;i<12;++i) { auto p=people.person(site,i); std::cout<<site.name<<" | "<<p.name<<" | "<<people.jobs[size_t(p.job)].name<<" | "<<people.traits[size_t(p.trait)].name<<'\n'; } }
+        auto mods = er::loadMods(modsPath, modIds, noMods);
+        if (worldReport)
+        {
+            er::Atlas atlas(uint32_t(seed) ^ er::hash(uint32_t(seed >> 32)) ^ mods.generation.seedSalt, dataPath);
+            std::cout << "World " << seed << " / use --position X Y --demo to inspect a location\n";
+            for (int y = -2; y <= 2; ++y)
+                for (int x = -2; x <= 2; ++x)
+                {
+                    auto p = atlas.place({x, y});
+                    std::cout << p.name << " | " << p.pos.x << ", " << p.pos.y << " | " << atlas.types[size_t(p.type)].purpose << '\n';
+                }
+            er::Population people(dataPath);
+            er::Chronicle history(atlas, people, dataPath);
+            for (size_t i = 0; i < history.events.size(); ++i)
+                std::cout << history.account(int(i)) << '\n';
+            for (int y = -2; y <= 2; ++y)
+                for (int x = -2; x <= 2; ++x)
+                {
+                    auto site = atlas.place({x, y});
+                    if (atlas.types[size_t(site.type)].inhabited)
+                        for (int i = 0; i < 12; ++i)
+                        {
+                            auto p = people.person(site, i);
+                            std::cout << site.name << " | " << p.name << " | " << people.jobs[size_t(p.job)].name << " | " << people.traits[size_t(p.trait)].name << '\n';
+                        }
+                }
             return 0;
         }
-        if(listMods) {
-            if(mods.names.empty()) std::cout<<"No active mods\n";
-            for(const auto& name:mods.names) std::cout<<name<<'\n';
+        if (listMods)
+        {
+            if (mods.names.empty())
+                std::cout << "No active mods\n";
+            for (const auto &name : mods.names)
+                std::cout << name << '\n';
             return 0;
         }
-        if(headless&&!frames) frames=600;
-        if(native&&headless) throw std::runtime_error("--window and --headless cannot be combined");
+        if (headless && !frames)
+            frames = 600;
+        if (native && headless)
+            throw std::runtime_error("--window and --headless cannot be combined");
 #ifdef __APPLE__
         std::unique_ptr<er::Window> window;
-        if(native) window=std::make_unique<er::Window>();
+        if (native)
+            window = std::make_unique<er::Window>();
 #else
-        if(native) throw std::runtime_error("--window currently requires macOS");
+        if (native)
+            throw std::runtime_error("--window currently requires macOS");
 #endif
-        er::Audio audio(!headless&&!mute);
-        er::Terminal terminal(!headless&&!native);
-        er::Framebuffer frame(w,h),interface(160,50);
-        er::Game game(seed,dataPath,mods);
+        er::Audio audio(!headless && !mute);
+        er::Terminal terminal(!headless && !native);
+        er::Framebuffer frame(w, h), interface(160, 50);
+        er::Game game(seed, dataPath, mods);
 #ifdef __APPLE__
         er::Terrain3D terrain3D;
-        if(window) window->raw3D(raw3D);
+        if (window)
+            window->raw3D(raw3D);
 #else
-        (void)raw3D; (void)renderer2D; (void)thirdPerson;
+        (void)raw3D;
+        (void)renderer2D;
+        (void)thirdPerson;
 #endif
         game.applyPlayerClass(er::parseRole(className));
         game.setScene(scene);
-        if(positionSet) {
-            game.hero.pos=startPosition; game.camera.center=startPosition; game.aim=startPosition+er::Vec2{5,0};
-            game.world.focus(startPosition); game.streamEnemies();
+        if (positionSet)
+        {
+            game.hero.pos = startPosition;
+            game.camera.center = startPosition;
+            game.aim = startPosition + er::Vec2{5, 0};
+            game.world.focus(startPosition);
+            game.streamEnemies();
         }
-        name.erase(std::remove_if(name.begin(),name.end(),[](unsigned char c){return c<32||c>126;}),name.end());
-        game.hero.name=name.empty()?"Senje":name;
-        game.presentationFps=fps;
+        name.erase(std::remove_if(name.begin(), name.end(), [](unsigned char c)
+                                  { return c < 32 || c > 126; }),
+                   name.end());
+        game.hero.name = name.empty() ? "Senje" : name;
+        game.presentationFps = fps;
         game.setTesting(!normal);
-        if(!headless&&!demo) game.loadSettings();
-        if(normal) game.setTesting(false);
-        if(fpsExplicit) game.presentationFps=fps;
-        if(classExplicit) game.applyPlayerClass(er::parseRole(className));
+        if (!headless && !demo)
+            game.loadSettings();
+        if (normal)
+            game.setTesting(false);
+        if (fpsExplicit)
+            game.presentationFps = fps;
+        if (classExplicit)
+            game.applyPlayerClass(er::parseRole(className));
         game.refreshSaves();
-        fps=game.presentationFps;
-        game.screen=(headless||demo)?er::Screen::Playing:er::Screen::Title;
-        using Clock=std::chrono::steady_clock;
-        auto start=Clock::now(),last=start,lastPresented=start,nextPresentation=start,nextInput=start;
-        float frameMs=1000.f/fps,accumulator=0,nextShot=0,nextArea=1.5f;
-        int count=0;
-        uint64_t bytes=0;
-        std::vector<double> workTimes,terrainGpuTimes,compositeGpuTimes;
-        auto period=std::chrono::microseconds(1000000/fps);
-        auto inputPeriod=std::chrono::microseconds(1000000/std::max(60,fps));
-        while(er::Terminal::running()&&(!frames||count<frames)) {
-            auto begin=Clock::now();
-            auto input=terminal.poll();
+        fps = game.presentationFps;
+        game.screen = (headless || demo) ? er::Screen::Playing : er::Screen::Title;
+        using Clock = std::chrono::steady_clock;
+        auto start = Clock::now(), last = start, lastPresented = start, nextPresentation = start, nextInput = start;
+        float frameMs = 1000.f / fps, accumulator = 0, nextShot = 0, nextArea = 1.5f;
+        int count = 0;
+        uint64_t bytes = 0;
+        std::vector<double> workTimes, terrainGpuTimes, compositeGpuTimes;
+        auto period = std::chrono::microseconds(1000000 / fps);
+        auto inputPeriod = std::chrono::microseconds(1000000 / std::max(60, fps));
+        while (er::Terminal::running() && (!frames || count < frames))
+        {
+            auto begin = Clock::now();
+            auto input = terminal.poll();
 #ifdef __APPLE__
-            game.camera.perspective=window&&!renderer2D&&!game.world.interior;
-            if(!thirdPerson&&!game.camera.firstPerson) game.camera.fov=70*er::pi/180;
-            game.camera.firstPerson=!thirdPerson;
-            game.camera.terrain=&game.world;
-            if(game.camera.perspective&&game.camera.firstPerson) game.camera.center=game.hero.pos;
-            if(window) input=window->poll(game.screen!=er::Screen::Playing,game.editingField,game.camera.perspective&&game.camera.firstPerson&&!game.frontEnd());
+            game.camera.perspective = window && !renderer2D && !game.world.interior;
+            if (!thirdPerson && !game.camera.firstPerson)
+                game.camera.fov = 70 * er::pi / 180;
+            game.camera.firstPerson = !thirdPerson;
+            game.camera.terrain = &game.world;
+            if (game.camera.perspective && game.camera.firstPerson)
+                game.camera.center = game.hero.pos;
+            if (window)
+                input = window->poll(game.screen != er::Screen::Playing, game.editingField, game.camera.perspective && game.camera.firstPerson && !game.frontEnd());
 #endif
             game.input(input);
-            if(game.quit) break;
-            fps=game.presentationFps;
-            period=std::chrono::microseconds(1000000/fps);
-            inputPeriod=std::chrono::microseconds(1000000/std::max(60,fps));
-            if(demo) {
+            if (game.quit)
+                break;
+            fps = game.presentationFps;
+            period = std::chrono::microseconds(1000000 / fps);
+            inputPeriod = std::chrono::microseconds(1000000 / std::max(60, fps));
+            if (demo)
+            {
                 er::Input action;
-                if(game.time>=nextShot) { action.keys+='1'; nextShot=game.time+.75f; }
-                if(game.time>=nextArea) { action.keys+='2'; nextArea=game.time+6; }
-                if(game.hero.mp<30) action.keys+='6';
-                if(game.fight.active) {
-                    game.aim=game.dragon.pos;
-                    for(const auto& area:game.combat.areas) if(area.owner>=100&&er::distance(game.hero.pos,area.pos)<area.radius+1) {
-                        auto d=er::normalized(game.hero.pos-area.pos);
-                        if(er::length(d)<.1f) d={1,0};
-                        if(std::abs(d.x)>.4f) action.keys+=d.x>0?'d':'a';
-                        if(std::abs(d.y)>.4f) action.keys+=d.y>0?'s':'w';
-                        break;
-                    }
-                } else {
-                    float best=25;
-                    for(const auto& e:game.mobs) if(e.alive&&er::distance(e.pos,game.hero.pos)<best) {
-                        best=er::distance(e.pos,game.hero.pos); game.aim=e.pos; game.hero.target=e.id;
-                    }
+                if (game.time >= nextShot)
+                {
+                    action.keys += '1';
+                    nextShot = game.time + .75f;
+                }
+                if (game.time >= nextArea)
+                {
+                    action.keys += '2';
+                    nextArea = game.time + 6;
+                }
+                if (game.hero.mp < 30)
+                    action.keys += '6';
+                if (game.fight.active)
+                {
+                    game.aim = game.dragon.pos;
+                    for (const auto &area : game.combat.areas)
+                        if (area.owner >= 100 && er::distance(game.hero.pos, area.pos) < area.radius + 1)
+                        {
+                            auto d = er::normalized(game.hero.pos - area.pos);
+                            if (er::length(d) < .1f)
+                                d = {1, 0};
+                            if (std::abs(d.x) > .4f)
+                                action.keys += d.x > 0 ? 'd' : 'a';
+                            if (std::abs(d.y) > .4f)
+                                action.keys += d.y > 0 ? 's' : 'w';
+                            break;
+                        }
+                }
+                else
+                {
+                    float best = 25;
+                    for (const auto &e : game.mobs)
+                        if (e.alive && er::distance(e.pos, game.hero.pos) < best)
+                        {
+                            best = er::distance(e.pos, game.hero.pos);
+                            game.aim = e.pos;
+                            game.hero.target = e.id;
+                        }
                 }
                 game.input(action);
             }
-            for(int event:game.soundEvents) audio.play(event);
+            for (int event : game.soundEvents)
+                audio.play(event);
             game.soundEvents.clear();
-            if(!headless) {
-                auto dimensions=terminal.size();
+            if (!headless)
+            {
+                auto dimensions = terminal.size();
 #ifdef __APPLE__
-                if(window) {
-                    dimensions=window->size(game.detail);
-                    auto [uw,uh]=window->interfaceSize();
-                    if(interface.width!=uw||interface.height!=uh) interface.resize(uw,uh);
+                if (window)
+                {
+                    dimensions = window->size(game.detail);
+                    auto [uw, uh] = window->interfaceSize();
+                    if (interface.width != uw || interface.height != uh)
+                        interface.resize(uw, uh);
                 }
 #endif
-                auto [x,y]=dimensions; x=er::clamp(x,1,500); y=er::clamp(y,1,180);
-                if(x!=frame.width||y!=frame.height) frame.resize(x,y);
+                auto [x, y] = dimensions;
+                x = er::clamp(x, 1, 500);
+                y = er::clamp(y, 1, 180);
+                if (x != frame.width || y != frame.height)
+                    frame.resize(x, y);
             }
-            float elapsed=std::min(.25f,std::chrono::duration<float>(begin-last).count());
-            last=begin;
+            float elapsed = std::min(.25f, std::chrono::duration<float>(begin - last).count());
+            last = begin;
             {
-                accumulator+=headless?1.f/60:elapsed;
-                while(accumulator>=1.f/60) { game.tick(1.f/60); accumulator-=1.f/60; }
+                accumulator += headless ? 1.f / 60 : elapsed;
+                while (accumulator >= 1.f / 60)
+                {
+                    game.tick(1.f / 60);
+                    accumulator -= 1.f / 60;
+                }
             }
-            bool ready=terminal.frameReady();
+            bool ready = terminal.frameReady();
 #ifdef __APPLE__
-            if(window) ready=window->ready();
+            if (window)
+                ready = window->ready();
 #endif
-            if(headless||(begin>=nextPresentation&&ready)) {
+            if (headless || (begin >= nextPresentation && ready))
+            {
 #ifdef __APPLE__
-                game.render(frame,frameMs,window?&interface:nullptr);
+                game.render(frame, frameMs, window ? &interface : nullptr);
 #else
-                game.render(frame,frameMs);
+                game.render(frame, frameMs);
 #endif
-                bool submitted=true;
+                bool submitted = true;
 #ifdef __APPLE__
-                if(window) {
-                    bool perspective=game.camera.perspective&&!game.frontEnd();
-                    if(window->terrainMilliseconds()>0) terrainGpuTimes.push_back(window->terrainMilliseconds());
-                    if(window->gpuMilliseconds()>0) compositeGpuTimes.push_back(window->gpuMilliseconds());
-                    if(perspective) terrain3D.update(game.world,game.hero.pos);
-                    if(perspective&&window->debug3D()) {
-                        int x=std::max(0,interface.width-49),y=std::max(0,interface.height-14);
-                        interface.text(x,y,"3D FOUNDATION | F8 raw/ASCII | F9 close");
-                        interface.text(x,y+1,"Mouse: look | Wheel: zoom | [ ] FOV");
-                        interface.text(x,y+2,"Terrain GPU: "+std::to_string(window->terrainMilliseconds())+" ms");
-                        interface.text(x,y+3,"Composite GPU: "+std::to_string(window->gpuMilliseconds())+" ms");
-                        interface.text(x,y+4,"Grid: "+std::to_string(frame.width)+"x"+std::to_string(frame.height)+" | Chunks: "+std::to_string(terrain3D.chunks.size()));
+                if (window)
+                {
+                    bool perspective = game.camera.perspective && !game.frontEnd();
+                    if (window->terrainMilliseconds() > 0)
+                        terrainGpuTimes.push_back(window->terrainMilliseconds());
+                    if (window->gpuMilliseconds() > 0)
+                        compositeGpuTimes.push_back(window->gpuMilliseconds());
+                    if (perspective)
+                        terrain3D.update(game.world, game.hero.pos);
+                    if (perspective && window->debug3D())
+                    {
+                        int x = std::max(0, interface.width - 49), y = std::max(0, interface.height - 14);
+                        interface.text(x, y, "3D FOUNDATION | F8 raw/ASCII | F9 close");
+                        interface.text(x, y + 1, "Mouse: look | Wheel: zoom | [ ] FOV");
+                        interface.text(x, y + 2, "Terrain GPU: " + std::to_string(window->terrainMilliseconds()) + " ms");
+                        interface.text(x, y + 3, "Composite GPU: " + std::to_string(window->gpuMilliseconds()) + " ms");
+                        interface.text(x, y + 4, "Grid: " + std::to_string(frame.width) + "x" + std::to_string(frame.height) + " | Chunks: " + std::to_string(terrain3D.chunks.size()));
                     }
-                    submitted=window->present(frame,interface,perspective?&terrain3D:nullptr,perspective?&game.camera:nullptr,game.screen==er::Screen::Playing?1.f:.24f);
+                    submitted = window->present(frame, interface, perspective ? &terrain3D : nullptr, perspective ? &game.camera : nullptr, game.screen == er::Screen::Playing ? 1.f : .24f);
                 }
                 else
 #endif
                 {
-                    auto output=frame.diff();
-                    bytes+=output.size();
+                    auto output = frame.diff();
+                    bytes += output.size();
                     terminal.present(output);
                 }
-                if(submitted) {
-                    if(count>0&&!headless) {
-                        float interval=std::chrono::duration<float,std::milli>(begin-lastPresented).count();
-                        frameMs=frameMs*.9f+interval*.1f;
+                if (submitted)
+                {
+                    if (count > 0 && !headless)
+                    {
+                        float interval = std::chrono::duration<float, std::milli>(begin - lastPresented).count();
+                        frameMs = frameMs * .9f + interval * .1f;
                     }
-                    lastPresented=begin;
+                    lastPresented = begin;
                 }
                 // Keep the target cadence, but never burst queued old frames.
-                nextPresentation=std::max(nextPresentation+period,Clock::now());
-                if(submitted) ++count;
-                workTimes.push_back(std::chrono::duration<double,std::milli>(Clock::now()-begin).count());
+                nextPresentation = std::max(nextPresentation + period, Clock::now());
+                if (submitted)
+                    ++count;
+                workTimes.push_back(std::chrono::duration<double, std::milli>(Clock::now() - begin).count());
             }
-            if(!headless) {
-                nextInput+=inputPeriod;
-                if(nextInput<Clock::now()) nextInput=Clock::now();
-                auto deadline=nextInput;
-                std::this_thread::sleep_until(deadline-std::chrono::microseconds(300));
-                while(Clock::now()<deadline) std::this_thread::yield();
+            if (!headless)
+            {
+                nextInput += inputPeriod;
+                if (nextInput < Clock::now())
+                    nextInput = Clock::now();
+                auto deadline = nextInput;
+                std::this_thread::sleep_until(deadline - std::chrono::microseconds(300));
+                while (Clock::now() < deadline)
+                    std::this_thread::yield();
             }
         }
-        if(!headless&&!demo&&game.activeSave>=0&&!game.saveAdventure()) std::cerr<<"Could not save adventure: "<<game.menuNotice<<"\n";
-        if(!headless&&!demo&&!game.saveSettings()) std::cerr<<"Could not save settings in the working directory\n";
-        double seconds=std::chrono::duration<double>(Clock::now()-start).count();
-        double mean=workTimes.empty()?0:std::accumulate(workTimes.begin(),workTimes.end(),0.0)/workTimes.size();
-        std::sort(workTimes.begin(),workTimes.end());
-        double p95=workTimes.empty()?0:workTimes[std::min(workTimes.size()-1,size_t(workTimes.size()*.95))];
-        if(!dump.empty()) frame.dump(dump);
-        auto average=[](const std::vector<double>& samples){return samples.empty()?0:std::accumulate(samples.begin(),samples.end(),0.0)/samples.size();};
-        if(!stats.empty()) {
+        if (!headless && !demo && game.activeSave >= 0 && !game.saveAdventure())
+            std::cerr << "Could not save adventure: " << game.menuNotice << "\n";
+        if (!headless && !demo && !game.saveSettings())
+            std::cerr << "Could not save settings in the working directory\n";
+        double seconds = std::chrono::duration<double>(Clock::now() - start).count();
+        double mean = workTimes.empty() ? 0 : std::accumulate(workTimes.begin(), workTimes.end(), 0.0) / workTimes.size();
+        std::sort(workTimes.begin(), workTimes.end());
+        double p95 = workTimes.empty() ? 0 : workTimes[std::min(workTimes.size() - 1, size_t(workTimes.size() * .95))];
+        if (!dump.empty())
+            frame.dump(dump);
+        auto average = [](const std::vector<double> &samples)
+        { return samples.empty() ? 0 : std::accumulate(samples.begin(), samples.end(), 0.0) / samples.size(); };
+        if (!stats.empty())
+        {
             std::ofstream out(stats);
-            if(!out) throw std::runtime_error("Cannot write metrics: "+stats);
-            out<<std::fixed<<std::setprecision(3)<<"{\"frames\":"<<count<<",\"seconds\":"<<seconds
-                <<",\"fps\":"<<(seconds>0?count/seconds:0)<<",\"work_mean_ms\":"<<mean<<",\"work_p95_ms\":"<<p95
-                <<",\"terrain_gpu_mean_ms\":"<<average(terrainGpuTimes)<<",\"composite_gpu_mean_ms\":"<<average(compositeGpuTimes)
-                <<",\"ansi_bytes\":"<<bytes<<",\"width\":"<<frame.width<<",\"height\":"<<frame.height
-                <<",\"hero_hp\":"<<game.hero.hp<<",\"boss_hp\":"<<game.dragon.hp<<",\"boss_won\":"<<(game.fight.won?"true":"false")<<"}\n";
+            if (!out)
+                throw std::runtime_error("Cannot write metrics: " + stats);
+            out << std::fixed << std::setprecision(3) << "{\"frames\":" << count << ",\"seconds\":" << seconds
+                << ",\"fps\":" << (seconds > 0 ? count / seconds : 0) << ",\"work_mean_ms\":" << mean << ",\"work_p95_ms\":" << p95
+                << ",\"terrain_gpu_mean_ms\":" << average(terrainGpuTimes) << ",\"composite_gpu_mean_ms\":" << average(compositeGpuTimes)
+                << ",\"ansi_bytes\":" << bytes << ",\"width\":" << frame.width << ",\"height\":" << frame.height
+                << ",\"hero_hp\":" << game.hero.hp << ",\"boss_hp\":" << game.dragon.hp << ",\"boss_won\":" << (game.fight.won ? "true" : "false") << "}\n";
         }
-        if(headless) std::cout<<count<<" frames in "<<seconds<<" s | work mean "<<mean<<" ms, p95 "<<p95<<" ms | ANSI "<<bytes<<" bytes\n";
-    } catch(const std::exception& e) {
-        std::cerr<<"Eternal: "<<e.what()<<'\n';
+        if (headless)
+            std::cout << count << " frames in " << seconds << " s | work mean " << mean << " ms, p95 " << p95 << " ms | ANSI " << bytes << " bytes\n";
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Eternal: " << e.what() << '\n';
         return 1;
     }
 }

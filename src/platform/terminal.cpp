@@ -10,155 +10,325 @@
 #include <poll.h>
 #include <cerrno>
 #endif
-namespace er {
-namespace {
-volatile std::sig_atomic_t alive=1;
-constexpr const char restore[]="\x1b[0m\x1b[?1003l\x1b[?1006l\x1b[?25h\x1b[?7h\x1b[?1049l";
-void stop(int) { alive=0; }
+namespace er
+{
+    namespace
+    {
+        volatile std::sig_atomic_t alive = 1;
+        constexpr const char restore[] = "\x1b[0m\x1b[?1003l\x1b[?1006l\x1b[?25h\x1b[?7h\x1b[?1049l";
+        void stop(int) { alive = 0; }
 #ifndef _WIN32
-void resized(int) {} // Size is queried each frame; SIGWINCH only interrupts waits.
-termios saved{}; bool savedValid=false;
-void crash(int sig) { if(savedValid) tcsetattr(STDIN_FILENO,TCSANOW,&saved); auto ignored=::write(STDOUT_FILENO,restore,sizeof(restore)-1); (void)ignored; _exit(128+sig); }
+        void resized(int) {} // Size is queried each frame; SIGWINCH only interrupts waits.
+        termios saved{};
+        bool savedValid = false;
+        void crash(int sig)
+        {
+            if (savedValid)
+                tcsetattr(STDIN_FILENO, TCSANOW, &saved);
+            auto ignored = ::write(STDOUT_FILENO, restore, sizeof(restore) - 1);
+            (void)ignored;
+            _exit(128 + sig);
+        }
 #else
-BOOL WINAPI ctrl(DWORD) { alive=0; return TRUE; }
-HANDLE fatalIn=INVALID_HANDLE_VALUE,fatalOut=INVALID_HANDLE_VALUE;
-DWORD fatalInMode=0,fatalOutMode=0;
-UINT fatalCodePage=0;
-LPTOP_LEVEL_EXCEPTION_FILTER previousFilter=nullptr;
-void restoreWindows() {
-    DWORD written=0; WriteFile(fatalOut,restore,sizeof(restore)-1,&written,nullptr);
-    SetConsoleMode(fatalIn,fatalInMode); SetConsoleMode(fatalOut,fatalOutMode); SetConsoleOutputCP(fatalCodePage);
-}
-LONG WINAPI fatalWindows(EXCEPTION_POINTERS*) { restoreWindows(); return EXCEPTION_CONTINUE_SEARCH; }
-void fatalSignal(int sig) { restoreWindows(); std::_Exit(128+sig); }
+        BOOL WINAPI ctrl(DWORD)
+        {
+            alive = 0;
+            return TRUE;
+        }
+        HANDLE fatalIn = INVALID_HANDLE_VALUE, fatalOut = INVALID_HANDLE_VALUE;
+        DWORD fatalInMode = 0, fatalOutMode = 0;
+        UINT fatalCodePage = 0;
+        LPTOP_LEVEL_EXCEPTION_FILTER previousFilter = nullptr;
+        void restoreWindows()
+        {
+            DWORD written = 0;
+            WriteFile(fatalOut, restore, sizeof(restore) - 1, &written, nullptr);
+            SetConsoleMode(fatalIn, fatalInMode);
+            SetConsoleMode(fatalOut, fatalOutMode);
+            SetConsoleOutputCP(fatalCodePage);
+        }
+        LONG WINAPI fatalWindows(EXCEPTION_POINTERS *)
+        {
+            restoreWindows();
+            return EXCEPTION_CONTINUE_SEARCH;
+        }
+        void fatalSignal(int sig)
+        {
+            restoreWindows();
+            std::_Exit(128 + sig);
+        }
 #endif
-}
-Input InputParser::feed(const std::string& bytes) {
-    if(pending=="\x1b"&&bytes.empty()&&std::chrono::steady_clock::now()-escapeSince>std::chrono::milliseconds(30)) {
-        pending.clear(); Input escape; escape.keys=char(27); return escape;
     }
-    if(pending.empty()&&!bytes.empty()) escapeSince=std::chrono::steady_clock::now();
-    pending+=bytes; Input result; size_t i=0;
-    while(i<pending.size()) {
-        if(pending[i]!='\x1b') { result.keys+=pending[i++]; continue; }
-        if(i+1==pending.size()) break;
-        if(pending[i+1]!='[') { ++i; continue; }
-        size_t end=i+2; while(end<pending.size()&&(pending[end]<'@'||pending[end]>'~')) ++end;
-        if(end==pending.size()) break;
-        const char last=pending[end];
-        if(pending[i+2]=='<') {
-            int b=0,x=0,y=0;
-            if(std::sscanf(pending.substr(i+3,end-i-3).c_str(),"%d;%d;%d",&b,&x,&y)==3) {
-                result.mouseX=x-1; result.mouseY=y-1;
-                if(b&64) result.scroll+=(b&1)?-1:1; else if(!(b&32)&&(b&3)==0&&last=='M') result.click=true;
+    Input InputParser::feed(const std::string &bytes)
+    {
+        if (pending == "\x1b" && bytes.empty() && std::chrono::steady_clock::now() - escapeSince > std::chrono::milliseconds(30))
+        {
+            pending.clear();
+            Input escape;
+            escape.keys = char(27);
+            return escape;
+        }
+        if (pending.empty() && !bytes.empty())
+            escapeSince = std::chrono::steady_clock::now();
+        pending += bytes;
+        Input result;
+        size_t i = 0;
+        while (i < pending.size())
+        {
+            if (pending[i] != '\x1b')
+            {
+                result.keys += pending[i++];
+                continue;
             }
-        } else if(last=='R') {
-            int row=0,column=0;
-            result.cursorReport=std::sscanf(pending.substr(i+2,end-i-2).c_str(),"%d;%d",&row,&column)==2&&row>0&&column>0;
-        } else if(last=='A') result.keys+='^'; else if(last=='B') result.keys+='v'; else if(last=='C') result.keys+='>'; else if(last=='D') result.keys+='<';
-        i=end+1;
-    } pending.erase(0,i); if(pending.size()>128) pending.clear(); return result;
-}
-Terminal::Terminal(bool enable) {
-    if(!enable) return;
-    const char* program=std::getenv("TERM_PROGRAM");
-    synchronize=program&&std::string(program)=="Apple_Terminal";
-#ifdef _WIN32
-    in=GetStdHandle(STD_INPUT_HANDLE); out=GetStdHandle(STD_OUTPUT_HANDLE);
-    if(!GetConsoleMode(in,&oldIn)||!GetConsoleMode(out,&oldOut)) throw std::runtime_error("Run in a terminal, or use --headless");
-    if(!SetConsoleMode(out,oldOut|ENABLE_VIRTUAL_TERMINAL_PROCESSING)) throw std::runtime_error("VT terminal required");
-    oldCodePage=GetConsoleOutputCP(); SetConsoleOutputCP(CP_UTF8);
-    fatalIn=in; fatalOut=out; fatalInMode=oldIn; fatalOutMode=oldOut; fatalCodePage=oldCodePage;
-    previousFilter=SetUnhandledExceptionFilter(fatalWindows); std::signal(SIGABRT,fatalSignal);
-    SetConsoleMode(in,ENABLE_PROCESSED_INPUT|ENABLE_WINDOW_INPUT|ENABLE_MOUSE_INPUT|ENABLE_EXTENDED_FLAGS); SetConsoleCtrlHandler(ctrl,TRUE);
-#else
-    if(!isatty(STDIN_FILENO)||!isatty(STDOUT_FILENO)) throw std::runtime_error("Run in a terminal, or use --headless");
-    if(tcgetattr(STDIN_FILENO,&old)!=0) throw std::runtime_error("Cannot read terminal state");
-    saved=old; savedValid=true; termios raw=old;
-    raw.c_lflag&=static_cast<tcflag_t>(~(ICANON|ECHO|IEXTEN)); raw.c_iflag&=static_cast<tcflag_t>(~(IXON|ICRNL)); raw.c_cc[VMIN]=0; raw.c_cc[VTIME]=0;
-    tcsetattr(STDIN_FILENO,TCSANOW,&raw); oldFlags=fcntl(STDIN_FILENO,F_GETFL); fcntl(STDIN_FILENO,F_SETFL,oldFlags|O_NONBLOCK);
-    std::signal(SIGSEGV,crash); std::signal(SIGABRT,crash); std::signal(SIGFPE,crash); std::signal(SIGILL,crash); std::signal(SIGBUS,crash);
-    std::signal(SIGTERM,stop); std::signal(SIGHUP,stop); std::signal(SIGWINCH,resized); std::signal(SIGTSTP,stop);
-#endif
-    alive=1; std::signal(SIGINT,stop); active=true; write("\x1b[?1049h\x1b[?25l\x1b[?7l\x1b[?1003h\x1b[?1006h\x1b[2J");
-}
-Terminal::~Terminal() {
-    if(!active) return; write(restore);
-#ifdef _WIN32
-    SetConsoleMode(in,oldIn); SetConsoleMode(out,oldOut); SetConsoleOutputCP(oldCodePage); SetConsoleCtrlHandler(ctrl,FALSE);
-    SetUnhandledExceptionFilter(previousFilter);
-#else
-    tcsetattr(STDIN_FILENO,TCSANOW,&old); fcntl(STDIN_FILENO,F_SETFL,oldFlags); savedValid=false;
-#endif
-}
-bool Terminal::running() { return alive!=0; }
-std::pair<int,int> Terminal::size() const {
-#ifdef _WIN32
-    CONSOLE_SCREEN_BUFFER_INFO s{}; if(active&&GetConsoleScreenBufferInfo(out,&s)) return {s.srWindow.Right-s.srWindow.Left+1,s.srWindow.Bottom-s.srWindow.Top+1};
-#else
-    winsize s{}; if(active&&ioctl(STDOUT_FILENO,TIOCGWINSZ,&s)==0&&s.ws_col&&s.ws_row) return {s.ws_col,s.ws_row};
-#endif
-    return {200,60};
-}
-Input Terminal::poll() {
-    if(!active) return {};
-#ifdef _WIN32
-    Input r; DWORD n=0; GetNumberOfConsoleInputEvents(in,&n);
-    while(n--) {
-        INPUT_RECORD e{}; DWORD got=0; ReadConsoleInputW(in,&e,1,&got);
-        if(e.EventType==KEY_EVENT&&e.Event.KeyEvent.bKeyDown) {
-            auto k=e.Event.KeyEvent; char c=k.uChar.AsciiChar;
-            if(c) r.keys+=c; else if(k.wVirtualKeyCode==VK_UP) r.keys+='^'; else if(k.wVirtualKeyCode==VK_DOWN) r.keys+='v'; else if(k.wVirtualKeyCode==VK_LEFT) r.keys+='<'; else if(k.wVirtualKeyCode==VK_RIGHT) r.keys+='>';
-        } else if(e.EventType==MOUSE_EVENT) {
-            auto m=e.Event.MouseEvent; r.mouseX=m.dwMousePosition.X; r.mouseY=m.dwMousePosition.Y;
-            r.click=m.dwEventFlags==0&&(m.dwButtonState&FROM_LEFT_1ST_BUTTON_PRESSED);
-            if(m.dwEventFlags==MOUSE_WHEELED) r.scroll=static_cast<SHORT>(HIWORD(m.dwButtonState))>0?1:-1;
+            if (i + 1 == pending.size())
+                break;
+            if (pending[i + 1] != '[')
+            {
+                ++i;
+                continue;
+            }
+            size_t end = i + 2;
+            while (end < pending.size() && (pending[end] < '@' || pending[end] > '~'))
+                ++end;
+            if (end == pending.size())
+                break;
+            const char last = pending[end];
+            if (pending[i + 2] == '<')
+            {
+                int b = 0, x = 0, y = 0;
+                if (std::sscanf(pending.substr(i + 3, end - i - 3).c_str(), "%d;%d;%d", &b, &x, &y) == 3)
+                {
+                    result.mouseX = x - 1;
+                    result.mouseY = y - 1;
+                    if (b & 64)
+                        result.scroll += (b & 1) ? -1 : 1;
+                    else if (!(b & 32) && (b & 3) == 0 && last == 'M')
+                        result.click = true;
+                }
+            }
+            else if (last == 'R')
+            {
+                int row = 0, column = 0;
+                result.cursorReport = std::sscanf(pending.substr(i + 2, end - i - 2).c_str(), "%d;%d", &row, &column) == 2 && row > 0 && column > 0;
+            }
+            else if (last == 'A')
+                result.keys += '^';
+            else if (last == 'B')
+                result.keys += 'v';
+            else if (last == 'C')
+                result.keys += '>';
+            else if (last == 'D')
+                result.keys += '<';
+            i = end + 1;
         }
-    } return r;
-#else
-    std::string s; char buf[4096]; ssize_t n; while((n=::read(STDIN_FILENO,buf,sizeof(buf)))>0) s.append(buf,size_t(n));
-    auto input=parser.feed(s);
-    if(input.cursorReport) pendingFrame=false;
-    return input;
-#endif
-}
-bool Terminal::frameReady() {
-    if(!pendingFrame) return true;
-    // A terminal may ignore cursor reports. Never freeze gameplay on a reply.
-    if(std::chrono::steady_clock::now()-sentFrame>std::chrono::milliseconds(250)) {
-        synchronize=false; pendingFrame=false; return true;
+        pending.erase(0, i);
+        if (pending.size() > 128)
+            pending.clear();
+        return result;
     }
-    return false;
-}
-void Terminal::present(const std::string& bytes) {
-    if(!synchronize) { write(bytes); return; }
-    write(bytes+"\x1b[6n");
-    sentFrame=std::chrono::steady_clock::now(); pendingFrame=true;
-}
-void Terminal::write(const std::string& s) {
-    if(!active||s.empty()) return;
+    Terminal::Terminal(bool enable)
+    {
+        if (!enable)
+            return;
+        const char *program = std::getenv("TERM_PROGRAM");
+        synchronize = program && std::string(program) == "Apple_Terminal";
 #ifdef _WIN32
-    size_t offset=0;
-    while(offset<s.size()) { DWORD written=0; if(!WriteFile(out,s.data()+offset,static_cast<DWORD>(s.size()-offset),&written,nullptr)||!written) break; offset+=written; }
+        in = GetStdHandle(STD_INPUT_HANDLE);
+        out = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (!GetConsoleMode(in, &oldIn) || !GetConsoleMode(out, &oldOut))
+            throw std::runtime_error("Run in a terminal, or use --headless");
+        if (!SetConsoleMode(out, oldOut | ENABLE_VIRTUAL_TERMINAL_PROCESSING))
+            throw std::runtime_error("VT terminal required");
+        oldCodePage = GetConsoleOutputCP();
+        SetConsoleOutputCP(CP_UTF8);
+        fatalIn = in;
+        fatalOut = out;
+        fatalInMode = oldIn;
+        fatalOutMode = oldOut;
+        fatalCodePage = oldCodePage;
+        previousFilter = SetUnhandledExceptionFilter(fatalWindows);
+        std::signal(SIGABRT, fatalSignal);
+        SetConsoleMode(in, ENABLE_PROCESSED_INPUT | ENABLE_WINDOW_INPUT | ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS);
+        SetConsoleCtrlHandler(ctrl, TRUE);
 #else
-    size_t offset=0;
-    while(offset<s.size()) {
-        const ssize_t n=::write(STDOUT_FILENO,s.data()+offset,s.size()-offset);
-        if(n>0) { offset+=size_t(n); continue; }
-        if(n<0&&errno==EINTR) continue;
-        if(n<0&&(errno==EAGAIN||errno==EWOULDBLOCK)) {
-            // stdin/stdout can share the same open file description. Making
-            // input nonblocking then also makes output nonblocking. Keep the
-            // unwritten tail: dropping it invalidates framebuffer diff state
-            // and may leave the terminal in the middle of an ANSI sequence.
-            pollfd ready{STDOUT_FILENO,POLLOUT,0};
-            int result;
-            do { result=::poll(&ready,1,-1); } while(result<0&&errno==EINTR);
-            if(result>0&&(ready.revents&POLLOUT)&&!(ready.revents&(POLLERR|POLLHUP|POLLNVAL))) continue;
-        }
-        alive=0; // Output disconnected or failed: stop instead of drawing more.
-        break;
-    }
+        if (!isatty(STDIN_FILENO) || !isatty(STDOUT_FILENO))
+            throw std::runtime_error("Run in a terminal, or use --headless");
+        if (tcgetattr(STDIN_FILENO, &old) != 0)
+            throw std::runtime_error("Cannot read terminal state");
+        saved = old;
+        savedValid = true;
+        termios raw = old;
+        raw.c_lflag &= static_cast<tcflag_t>(~(ICANON | ECHO | IEXTEN));
+        raw.c_iflag &= static_cast<tcflag_t>(~(IXON | ICRNL));
+        raw.c_cc[VMIN] = 0;
+        raw.c_cc[VTIME] = 0;
+        tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+        oldFlags = fcntl(STDIN_FILENO, F_GETFL);
+        fcntl(STDIN_FILENO, F_SETFL, oldFlags | O_NONBLOCK);
+        std::signal(SIGSEGV, crash);
+        std::signal(SIGABRT, crash);
+        std::signal(SIGFPE, crash);
+        std::signal(SIGILL, crash);
+        std::signal(SIGBUS, crash);
+        std::signal(SIGTERM, stop);
+        std::signal(SIGHUP, stop);
+        std::signal(SIGWINCH, resized);
+        std::signal(SIGTSTP, stop);
 #endif
-}
+        alive = 1;
+        std::signal(SIGINT, stop);
+        active = true;
+        write("\x1b[?1049h\x1b[?25l\x1b[?7l\x1b[?1003h\x1b[?1006h\x1b[2J");
+    }
+    Terminal::~Terminal()
+    {
+        if (!active)
+            return;
+        write(restore);
+#ifdef _WIN32
+        SetConsoleMode(in, oldIn);
+        SetConsoleMode(out, oldOut);
+        SetConsoleOutputCP(oldCodePage);
+        SetConsoleCtrlHandler(ctrl, FALSE);
+        SetUnhandledExceptionFilter(previousFilter);
+#else
+        tcsetattr(STDIN_FILENO, TCSANOW, &old);
+        fcntl(STDIN_FILENO, F_SETFL, oldFlags);
+        savedValid = false;
+#endif
+    }
+    bool Terminal::running() { return alive != 0; }
+    std::pair<int, int> Terminal::size() const
+    {
+#ifdef _WIN32
+        CONSOLE_SCREEN_BUFFER_INFO s{};
+        if (active && GetConsoleScreenBufferInfo(out, &s))
+            return {s.srWindow.Right - s.srWindow.Left + 1, s.srWindow.Bottom - s.srWindow.Top + 1};
+#else
+        winsize s{};
+        if (active && ioctl(STDOUT_FILENO, TIOCGWINSZ, &s) == 0 && s.ws_col && s.ws_row)
+            return {s.ws_col, s.ws_row};
+#endif
+        return {200, 60};
+    }
+    Input Terminal::poll()
+    {
+        if (!active)
+            return {};
+#ifdef _WIN32
+        Input r;
+        DWORD n = 0;
+        GetNumberOfConsoleInputEvents(in, &n);
+        while (n--)
+        {
+            INPUT_RECORD e{};
+            DWORD got = 0;
+            ReadConsoleInputW(in, &e, 1, &got);
+            if (e.EventType == KEY_EVENT && e.Event.KeyEvent.bKeyDown)
+            {
+                auto k = e.Event.KeyEvent;
+                char c = k.uChar.AsciiChar;
+                if (c)
+                    r.keys += c;
+                else if (k.wVirtualKeyCode == VK_UP)
+                    r.keys += '^';
+                else if (k.wVirtualKeyCode == VK_DOWN)
+                    r.keys += 'v';
+                else if (k.wVirtualKeyCode == VK_LEFT)
+                    r.keys += '<';
+                else if (k.wVirtualKeyCode == VK_RIGHT)
+                    r.keys += '>';
+            }
+            else if (e.EventType == MOUSE_EVENT)
+            {
+                auto m = e.Event.MouseEvent;
+                r.mouseX = m.dwMousePosition.X;
+                r.mouseY = m.dwMousePosition.Y;
+                r.click = m.dwEventFlags == 0 && (m.dwButtonState & FROM_LEFT_1ST_BUTTON_PRESSED);
+                if (m.dwEventFlags == MOUSE_WHEELED)
+                    r.scroll = static_cast<SHORT>(HIWORD(m.dwButtonState)) > 0 ? 1 : -1;
+            }
+        }
+        return r;
+#else
+        std::string s;
+        char buf[4096];
+        ssize_t n;
+        while ((n = ::read(STDIN_FILENO, buf, sizeof(buf))) > 0)
+            s.append(buf, size_t(n));
+        auto input = parser.feed(s);
+        if (input.cursorReport)
+            pendingFrame = false;
+        return input;
+#endif
+    }
+    bool Terminal::frameReady()
+    {
+        if (!pendingFrame)
+            return true;
+        // A terminal may ignore cursor reports. Never freeze gameplay on a reply.
+        if (std::chrono::steady_clock::now() - sentFrame > std::chrono::milliseconds(250))
+        {
+            synchronize = false;
+            pendingFrame = false;
+            return true;
+        }
+        return false;
+    }
+    void Terminal::present(const std::string &bytes)
+    {
+        if (!synchronize)
+        {
+            write(bytes);
+            return;
+        }
+        write(bytes + "\x1b[6n");
+        sentFrame = std::chrono::steady_clock::now();
+        pendingFrame = true;
+    }
+    void Terminal::write(const std::string &s)
+    {
+        if (!active || s.empty())
+            return;
+#ifdef _WIN32
+        size_t offset = 0;
+        while (offset < s.size())
+        {
+            DWORD written = 0;
+            if (!WriteFile(out, s.data() + offset, static_cast<DWORD>(s.size() - offset), &written, nullptr) || !written)
+                break;
+            offset += written;
+        }
+#else
+        size_t offset = 0;
+        while (offset < s.size())
+        {
+            const ssize_t n = ::write(STDOUT_FILENO, s.data() + offset, s.size() - offset);
+            if (n > 0)
+            {
+                offset += size_t(n);
+                continue;
+            }
+            if (n < 0 && errno == EINTR)
+                continue;
+            if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
+            {
+                // stdin/stdout can share the same open file description. Making
+                // input nonblocking then also makes output nonblocking. Keep the
+                // unwritten tail: dropping it invalidates framebuffer diff state
+                // and may leave the terminal in the middle of an ANSI sequence.
+                pollfd ready{STDOUT_FILENO, POLLOUT, 0};
+                int result;
+                do
+                {
+                    result = ::poll(&ready, 1, -1);
+                } while (result < 0 && errno == EINTR);
+                if (result > 0 && (ready.revents & POLLOUT) && !(ready.revents & (POLLERR | POLLHUP | POLLNVAL)))
+                    continue;
+            }
+            alive = 0; // Output disconnected or failed: stop instead of drawing more.
+            break;
+        }
+#endif
+    }
 }

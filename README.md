@@ -21,32 +21,32 @@ The checked-in macOS task points to `/private/tmp/eternalrpg-build-tools/cmake/d
 
 Choose **New adventure** to enter world/player names, select Warrior, Mage, Archer, Cleric or Rogue, edit the generated **12-digit seed**, and choose whether to enable God mode. New characters start at level 1 with zero gold, an empty inventory and no equipment. God mode is off by default; enabling it grants invulnerability, unlimited mana, 12× ability damage and 0.12-second ability cooldowns. It can also be toggled in Settings.
 
-| Control | Action |
-| --- | --- |
-| Enter / click | Choose a menu item; edit or finish a text field |
-| Esc / P | Pause or resume; menus release captured mouse look |
-| W/S or arrows in menus | Select an option |
-| A/D or Left/Right in Settings | Change selected setting |
-| WASD | Move relative to the camera in the 3D view |
-| Hold Shift + WASD | Sprint at 1.8× speed in the native window |
-| Space | Jump |
-| Mouse movement | Look and aim with the center crosshair in first person |
-| Right mouse drag | Orbit/tilt in third-person mode |
-| Click / 1–6 | Primary ability / class abilities |
-| Tab | Cycle nearby targets |
-| I, then J/K and Enter | Inventory: select and equip/unequip |
-| E / G | Collect nearby loot / gather materials |
-| F / Y | Interact with a site or interior object / talk to a resident |
-| J / L / U | Quest journal / learned history / mastery, talents and crafting |
-| C, then 1–5 | Change class outside combat, or anytime in God mode |
-| M | World atlas; WASD pan, +/- zoom, C center, Tab select, Enter travel |
-| 1–5 on map | Travel to discovered starting landmarks |
-| T on map | With God mode enabled, jump into procedural wilderness |
-| + / - / scroll | View magnification; orbit distance in third person |
-| [ / ] | Adjust 3D field of view |
-| F8 / F9 | Native raw 3D preview / renderer diagnostics |
-| B / R | Travel to Dragon arena / respawn after death |
-| H / Q | Controls overlay / exit |
+| Control                       | Action                                                              |
+| ----------------------------- | ------------------------------------------------------------------- |
+| Enter / click                 | Choose a menu item; edit or finish a text field                     |
+| Esc / P                       | Pause or resume; menus release captured mouse look                  |
+| W/S or arrows in menus        | Select an option                                                    |
+| A/D or Left/Right in Settings | Change selected setting                                             |
+| WASD                          | Move relative to the camera in the 3D view                          |
+| Hold Shift + WASD             | Sprint at 1.8× speed in the native window                           |
+| Space                         | Jump                                                                |
+| Mouse movement                | Look and aim with the center crosshair in first person              |
+| Right mouse drag              | Orbit/tilt in third-person mode                                     |
+| Click / 1–6                   | Primary ability / class abilities                                   |
+| Tab                           | Cycle nearby targets                                                |
+| I, then J/K and Enter         | Inventory: select and equip/unequip                                 |
+| E / G                         | Collect nearby loot / gather materials                              |
+| F / Y                         | Interact with a site or interior object / talk to a resident        |
+| J / L / U                     | Quest journal / learned history / mastery, talents and crafting     |
+| C, then 1–5                   | Change class outside combat, or anytime in God mode                 |
+| M                             | World atlas; WASD pan, +/- zoom, C center, Tab select, Enter travel |
+| 1–5 on map                    | Travel to discovered starting landmarks                             |
+| T on map                      | With God mode enabled, jump into procedural wilderness              |
+| + / - / scroll                | View magnification; orbit distance in third person                  |
+| [ / ]                         | Adjust 3D field of view                                             |
+| F8 / F9                       | Native raw 3D preview / renderer diagnostics                        |
+| B / R                         | Travel to Dragon arena / respawn after death                        |
+| H / Q                         | Controls overlay / exit                                             |
 
 Native movement supports held diagonal combinations such as WA and WD, normalized to the same speed as straight movement. Jumping uses gravity and landing, and respects existing obstacle/cliff collision. Terminal movement depends on keyboard repeat; mouse or arrow keys aim in the 2D view. On macOS, footsteps, jumps, landings and successful casts have synthesized sounds; `--mute` disables them. Other platforms currently run silently.
 
