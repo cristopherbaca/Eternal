@@ -31,6 +31,48 @@ int main() { try {
     check(std::abs(length(sprinter.velocity)-walking*1.8f)<.001f,"Shift sprint preserves normalized diagonal movement");
     run.sprint=false; sprinter.input(run); check(std::abs(length(sprinter.velocity)-walking)<.001f,"releasing Shift restores walking speed");
     run.movementKeys.clear(); run.sprint=true; sprinter.input(run); check(length(sprinter.velocity)==0,"Shift alone does not move player");
+    {
+        Game jumper; jumper.setTesting(true); Input jump; jump.keys=" "; jumper.input(jump);
+        check(jumper.jumpSpeed>0,"Space jumps instead of casting");
+        jumper.tick(.1f); float up=jumper.jumpHeight,vs=jumper.jumpSpeed;
+        check(jumper.hero.cooldown[0]==0,"jump does not consume the primary ability cooldown");
+        check(up>0&&jumper.camera.jumpHeight==up,"jump raises the camera with physical height");
+        jumper.input(jump); check(jumper.jumpSpeed==vs,"cannot jump again in midair");
+        jumper.screen=Screen::Paused; jumper.tick(.2f); check(jumper.jumpHeight==up,"pause freezes jump physics");
+        jumper.screen=Screen::Playing; for(int i=0;i<60;++i) jumper.tick(1.f/60);
+        check(jumper.jumpHeight==0&&jumper.jumpSpeed==0,"gravity returns the player to ground");
+        check(std::find(jumper.soundEvents.begin(),jumper.soundEvents.end(),1)!=jumper.soundEvents.end(),"landing queues a sound effect");
+        Game capped; capped.mobs.clear(); capped.hero.level=250; capped.spawnMob({900000,900000},0);
+        check(capped.mobs.size()==1&&capped.mobs[0].level==80,"distant enemies stop at level 80 even with high-level player");
+        float power=capped.mobs[0].power; capped.hero.level=300; capped.mobs.clear(); capped.spawnMob({900000,900000},0);
+        check(capped.mobs[0].power==power,"enemies do not scale past level 80 with player progression");
+        auto root=std::filesystem::temp_directory_path()/("eternal-cap-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+        capped.saveDirectory=root; capped.activeSave=0; auto& mob=capped.mobs[0]; mob.level=100;
+        mob.hp=mob.maxHp=capped.data.enemies[0].hp*(1+.2f*99); mob.power=capped.data.enemies[0].power*(1+.15f*99);
+        check(capped.saveAdventure(),"legacy high-level mob fixture saves");
+        Game restored; restored.saveDirectory=root; check(restored.loadAdventure(0),"legacy high-level mob save loads");
+        check(restored.mobs[0].level==80&&std::abs(restored.mobs[0].power-power)<.01f,"loaded mobs clamp level and scaled power");
+        std::filesystem::remove_all(root);
+        World lake(42); Terrain3D lakeMesh; lakeMesh.update(lake,{0,40});
+        bool foundWater=false,flatWater=true;
+        for(const auto& chunk:lakeMesh.chunks) for(size_t i=0;i+2<chunk.second.vertices.size();i+=3) {
+            const auto& a=chunk.second.vertices[i]; const auto& b=chunk.second.vertices[i+1]; const auto& c=chunk.second.vertices[i+2];
+            if(std::abs(a.color[0]-36.f/255)<.00001f&&std::abs(a.color[2]-126.f/255)<.00001f) {
+                foundWater=true; flatWater&=a.position[2]==b.position[2]&&a.position[2]==c.position[2]&&a.normal[2]==1;
+            }
+        }
+        bool eyeAboveWater=true,swimSpot=false;
+        for(int y=40;y<70;++y) for(int x=-30;x<30;++x) if(lake.water({float(x),float(y)})) {
+            Camera swim; swim.perspective=swim.firstPerson=true; swim.terrain=&lake; swim.center={float(x),float(y)};
+            eyeAboveWater&=swim.view().eye[2]>lake.waterLevel(swim.center); swimSpot=true;
+        }
+        check(swimSpot&&eyeAboveWater,"first-person eye stays above the lake surface");
+        check(foundWater&&flatWater,"all lake triangles have horizontal surfaces and upward normals");
+        bool highWater=false; for(int y=-3000;y<3000;y+=67) for(int x=-3000;x<3000;x+=67) {
+            Vec2 p{float(x),float(y)}; if(lake.elevation(p)>20&&lake.water(p)) highWater=true;
+        }
+        check(!highWater,"noise stripes cannot create water on high mountain slopes");
+    }
     Camera c; c.zoom=1.4f; Vec2 p{12,-6}; check(distance(p,c.unproject(c.project(p)))<.0001f,"projection inverse");
     check(noise(-4,13,42)==noise(-4,13,42),"seed deterministic");
     check(brightnessGlyph(-1)==U' '&&brightnessGlyph(2)==U'@',"ramp clamps");
@@ -78,7 +120,8 @@ int main() { try {
     camera3.yaw=0; auto nearScreen=camera3.project(camera3.center+Vec2{4,0}); camera3.zoom=1.5f;
     check(std::abs(camera3.project(camera3.center+Vec2{4,0}).x-80)>std::abs(nearScreen.x-80),"perspective zoom changes projected scale");
     {
-        Camera eyes=camera3; eyes.firstPerson=true; eyes.lookPitch=15*pi/180; eyes.zoom=1;
+        Camera eyes=camera3; eyes.center={0,12}; // Dry ground; swimming height has its own test above.
+        eyes.firstPerson=true; eyes.lookPitch=15*pi/180; eyes.zoom=1;
         auto first=eyes.view();
         check(std::abs(first.eye[0]-eyes.center.x)<.001f&&std::abs(first.eye[1]-eyes.center.y)<.001f&&std::abs(first.eye[2]-eyes.ground(eyes.center)-1.75f)<.001f,"first-person eye is attached to player terrain height");
         Vec2 hit; check(eyes.pick({80,25},hit)&&dot(hit-eyes.center,Vec2{first.forward[0],first.forward[1]})>0,"first-person crosshair ray hits terrain in front");

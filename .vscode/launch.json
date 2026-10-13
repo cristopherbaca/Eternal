@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "EternalRPG \u2014 GPU Window (recommended)",
+            "name": "Eternal \u2014 GPU Window (recommended)",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/eternal_rpg",
@@ -13,10 +13,10 @@
             "stopAtEntry": false,
             "externalConsole": false,
             "MIMode": "lldb",
-            "preLaunchTask": "EternalRPG: Build"
+            "preLaunchTask": "Eternal: Build"
         },
         {
-            "name": "EternalRPG \u2014 External Terminal",
+            "name": "Eternal \u2014 External Terminal",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/eternal_rpg",
@@ -25,7 +25,7 @@
             "stopAtEntry": false,
             "externalConsole": true,
             "MIMode": "lldb",
-            "preLaunchTask": "EternalRPG: Build"
+            "preLaunchTask": "Eternal: Build"
         }
     ]
 }

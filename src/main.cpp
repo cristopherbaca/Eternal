@@ -1,4 +1,5 @@
 #include "game.hpp"
+#include "platform/audio.hpp"
 #ifdef __APPLE__
 #include "platform/window.hpp"
 #endif
@@ -13,6 +14,7 @@
 int main(int argc,char** argv) {
     try {
         bool headless=false,demo=false,native=false,normal=false,fpsExplicit=false,classExplicit=false,noMods=false,listMods=false,positionSet=false,worldReport=false;
+        bool mute=false;
         bool renderer2D=false,raw3D=false,thirdPerson=false;
         er::Vec2 startPosition{};
         int frames=0,w=200,h=60,fps=60;
@@ -23,6 +25,7 @@ int main(int argc,char** argv) {
             std::string arg=argv[i];
             auto value=[&]() -> std::string { if(i+1>=argc) throw std::runtime_error("Missing value for "+arg); return argv[++i]; };
             if(arg=="--headless"||arg=="--benchmark") headless=true;
+            else if(arg=="--mute") mute=true;
             else if(arg=="--window") native=true;
             else if(arg=="--renderer-2d") renderer2D=true;
             else if(arg=="--third-person") thirdPerson=true;
@@ -47,8 +50,8 @@ int main(int argc,char** argv) {
             else if(arg=="--width") w=std::stoi(value());
             else if(arg=="--height") h=std::stoi(value());
             else if(arg=="--help") {
-                std::cout<<"EternalRPG - truecolor terminal RPG\n"
-                    "WASD move, mouse/arrows aim, click/Space primary, 1-6 abilities\n"
+                std::cout<<"Eternal - ASCII adventure\n  --mute disables synthesized sound\n"
+                    "WASD move, Shift sprint, Space jump, click/1 primary, 1-6 abilities\n"
                     "Tab target, C class, I inventory, E loot, B boss, R respawn, M map, Esc/P pause, Q quit\n"
                     "--scene grass|forest|ruins|water|boss  --class Warrior|Mage|Archer|Cleric|Rogue\n"
                     "--window (macOS Metal perspective ASCII window), --raw-3d, --renderer-2d\n"
@@ -91,6 +94,7 @@ int main(int argc,char** argv) {
 #else
         if(native) throw std::runtime_error("--window currently requires macOS");
 #endif
+        er::Audio audio(!headless&&!mute);
         er::Terminal terminal(!headless&&!native);
         er::Framebuffer frame(w,h),interface(160,50);
         er::Game game(seed,dataPath,mods);
@@ -163,6 +167,8 @@ int main(int argc,char** argv) {
                 }
                 game.input(action);
             }
+            for(int event:game.soundEvents) audio.play(event);
+            game.soundEvents.clear();
             if(!headless) {
                 auto dimensions=terminal.size();
 #ifdef __APPLE__
@@ -254,7 +260,7 @@ int main(int argc,char** argv) {
         }
         if(headless) std::cout<<count<<" frames in "<<seconds<<" s | work mean "<<mean<<" ms, p95 "<<p95<<" ms | ANSI "<<bytes<<" bytes\n";
     } catch(const std::exception& e) {
-        std::cerr<<"EternalRPG: "<<e.what()<<'\n';
+        std::cerr<<"Eternal: "<<e.what()<<'\n';
         return 1;
     }
 }

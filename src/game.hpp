@@ -65,6 +65,8 @@ public:
     void drawMap(Framebuffer& frame,int x,int y,int width,int height,Vec2 center,float step,bool full) const;
     Data data; World world; Combat combat; Camera camera; Entity hero; std::vector<Entity> party,mobs; Entity dragon;
     std::vector<FloatingText> texts; Vec2 velocity{},aim{5,12}; float time=0; bool quit=false;
+    float jumpHeight=0,jumpSpeed=0,stepTimer=0;
+    std::vector<int> soundEvents;
     bool classMenu=false,helpMenu=false; std::string message="Welcome to Ashenmere. C: class  H: help";
     bool inventoryMenu=false; int inventoryIndex=0; std::vector<Loot> loot;
     BossFight fight;

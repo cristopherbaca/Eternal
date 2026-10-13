@@ -1,10 +1,10 @@
-# EternalRPG
+# Eternal
 
 A single-player ASCII RPG in C++17 with a seed-based, streamed procedural world. Explore Ashenmere, Frostwood, Ember Hills, Reedlands and Dragon Hollow; defeat enemies, discover landmarks, earn XP and fight the Dragon. The networking client, server and multiplayer source have been removed.
 
 ![Single-player introduction](docs/screenshots/15-adventure-title.png)
 
-On this Mac, select **EternalRPG — GPU Window (recommended)** in VS Code's **Run and Debug** dropdown and click **▶**. Press **Enter** on the introduction screen to start. The generic **EternalRPG: Run** task also launches the GPU window on macOS. The explicitly named external-terminal launch remains available. Use **Run → Run Without Debugging** for normal play.
+On this Mac, select **Eternal — GPU Window (recommended)** in VS Code's **Run and Debug** dropdown and click **▶**. Press **Enter** on the introduction screen to start. The generic **Eternal: Run** task also launches the GPU window on macOS. The explicitly named external-terminal launch remains available. Use **Run → Run Without Debugging** for normal play.
 
 ```sh
 cmake -B build
@@ -13,7 +13,7 @@ cmake --build build
 ./build/eternal_rpg           # terminal mode
 ```
 
-The game, world, menus, settings and progression are C++. The macOS window uses a small Objective-C++ bridge to Apple's AppKit/Metal APIs; it has no Python, JavaScript or game-engine runtime. Terminal backends are provided for macOS, Linux and Windows. Only macOS has been tested locally; CI is configured for all three. On Windows, use `cmake --build build --config Release` and run `build\Release\eternal_rpg.exe`.
+All game host code, including the macOS window and native tests, builds as C++17. A C++ RAII bridge calls Apple's AppKit/Metal runtime APIs; GPU shaders remain Metal Shading Language. No Objective-C++ compiler, Python, JavaScript or game-engine runtime is required to run the game. Terminal backends are provided for macOS, Linux and Windows. Only macOS has been tested locally; CI is configured for all three. On Windows, use `cmake --build build --config Release` and run `build\Release\eternal_rpg.exe`.
 
 New adventures have **God mode off by default**. Enable it in character creation or Settings for easy exploration: invulnerability, unlimited mana, 12× ability damage and 0.12-second ability cooldowns. New characters start at level 1 with zero gold, an empty inventory and no equipped gear. Demo/headless runs retain testing defaults; `--normal` disables them. Testing mode doesn't replace your class or level and can be toggled during a session.
 
@@ -26,7 +26,8 @@ New adventures have **God mode off by default**. Enable it in character creation
 | WASD | Move |
 | Hold Shift + WASD | Sprint (1.8× speed, native window) |
 | Mouse / arrow keys in game | Aim |
-| Click / Space | Primary ability |
+| Click / 1 | Primary ability |
+| Space | Jump |
 | 1–6 | Cast abilities |
 | Tab | Cycle targets |
 | M | World map |
@@ -93,3 +94,9 @@ Create a world from **New adventure**: enter a world name and player name, choos
 **Continue / manage saved worlds** lists eight slots. Select a world to continue or delete it; deletion requires confirmation and defaults to Cancel. Saves retain level/XP, health/mana, gold, inventory, equipped items, position, discoveries, nearby enemies, boss progress, dropped loot, respawn deadlines, seed and generation settings. Active projectiles, particles and temporary status effects reset when loading. Use the same game data and mod versions when continuing; mismatched mod names or item tables are rejected. Back up the `saves/` folder to transfer adventures.
 
 Equipment slots are **Weapon, Clothing, Charm**. Defeat enemies and press E near loot; open I, select with J/K and press Enter to equip or remove an item. Additional drops include a linen tunic, leather coat and iron sword. Equipment affects power/armor; the player sprite distinguishes bare hands and plain clothing from equipped gear. Basic shops, dungeon jobs, class mastery/talents, crafting and witnessed theft are now playable. These are lightweight prototype systems; richer quest types, random item affixes and autonomous social relationships remain unfinished. See [living-world controls](docs/LIVING_WORLD.md).
+
+Enemy levels are capped at **80**, independently of the player's level. Loading an older save reduces over-cap mobs and their level-scaled health/power to level 80. Player progression is unchanged.
+
+On macOS, footsteps, jumps, landings and successful casts use quiet synthesized audio. Add `--mute` to disable sound. Audio is currently silent on other platforms. Space jumps with gravity and landing; it does not bypass existing cliff or obstacle collision.
+
+Lakes now use horizontal, shoreline-clipped water geometry above the terrain bed. The home lake has a carved basin; frontier lakes fill below a fixed water table. The former noise-stripe river coloring has been removed because it placed water on hillsides; flowing rivers are not yet simulated. Existing seeds remain deterministic, with updated water placement. Save/settings paths and the `eternal_rpg` executable name remain compatible with older installs.

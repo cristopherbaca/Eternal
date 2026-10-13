@@ -15,7 +15,7 @@ Game::Game(uint64_t seed,const std::filesystem::path& dataPath,const ModSet& mod
 void Game::spawnMob(Vec2 pos,int archetype) {
     if(mobs.size()>=100) return;
     const auto& def=data.enemies.at(size_t(archetype)); Entity e; e.id=nextMobId++; e.name=def.name; e.kind=Kind::Mob; e.archetype=archetype;
-    e.pos=e.home=pos; e.maxHp=e.hp=def.hp; e.armor=def.armor; e.power=def.power; e.speed=def.speed; e.color=def.color; e.role=archetype==1?Role::Mage:Role::Warrior; e.level=1+std::min(99,int(distance(pos,{0,12})/world.config.levelDistance)); e.hp=e.maxHp*=1+.2f*(e.level-1); e.power*=1+.15f*(e.level-1); if(archetype==0&&hash(uint32_t(e.id)^world.terrainSeed)%7==0) e.name="Wolf"; mobs.push_back(e);
+    e.pos=e.home=pos; e.maxHp=e.hp=def.hp; e.armor=def.armor; e.power=def.power; e.speed=def.speed; e.color=def.color; e.role=archetype==1?Role::Mage:Role::Warrior; e.level=1+std::min(79,int(distance(pos,{0,12})/world.config.levelDistance)); e.hp=e.maxHp*=1+.2f*(e.level-1); e.power*=1+.15f*(e.level-1); if(archetype==0&&hash(uint32_t(e.id)^world.terrainSeed)%7==0) e.name="Wolf"; mobs.push_back(e);
 }
 void Game::streamEnemies() {
     auto center=World::chunkAt(hero.pos); enemyCenter=center;
@@ -60,7 +60,7 @@ void Game::equipSelected() {
 void Game::respawn() {
     if(hero.alive) return;
     if(world.interior) leaveInterior();
-    hero.alive=true; hero.hp=hero.maxHp; hero.mp=hero.maxMp; hero.pos={0,12}; hero.poison=hero.slow=hero.hurtTime=0; hero.cooldown.fill(0); hero.gold=std::max(0,hero.gold-25); velocity={};
+    hero.alive=true; hero.hp=hero.maxHp; hero.mp=hero.maxMp; hero.pos={0,12}; hero.poison=hero.slow=hero.hurtTime=0; hero.cooldown.fill(0); hero.gold=std::max(0,hero.gold-25); velocity={}; jumpHeight=jumpSpeed=0; camera.jumpHeight=0;
     combat.areas.clear(); combat.projectiles.clear();
     for(size_t i=0;i<party.size();++i) { auto& e=party[i]; e.alive=true; e.hp=e.maxHp; e.mp=e.maxMp; e.pos=hero.pos+Vec2{float(i)*4-4,3}; }
     message="Returned to Ashenmere (-25g).";
@@ -119,7 +119,7 @@ void Game::input(const Input& in) {
             }
             else if(!classMenu) casts.push_back(k-'1');
         }
-        if(k==' ') casts.push_back(0);
+        if(k==' '&&hero.alive&&jumpHeight<=0&&jumpSpeed<=0) { jumpSpeed=7.f; soundEvents.push_back(0); }
         if(k=='\t') {
             auto es=entities(); std::vector<int> ids;
             for(auto* e:es) if(e->id!=hero.id&&(e->alive||e->kind==Kind::Party)&&distance(e->pos,hero.pos)<35) ids.push_back(e->id);
@@ -166,14 +166,26 @@ void Game::tick(float dt) {
     time+=dt;
     if(!world.interior) { population.tick(atlas,world,time,dt,weatherAt(world.terrainSeed,time)!=0); environment.tick(world,hero.pos,mobs,time,dt); }
     movementTime-=dt; if(movementTime<=0) velocity={};
+    Vec2 previousPosition=hero.pos;
     if(hero.alive) {
         hero.pos=world.move(hero.pos,velocity*dt*(world.water(hero.pos)?.55f:1.f)*(hero.slow>0?.35f:1.f));
     }
+    if(jumpHeight>0||jumpSpeed>0) {
+        jumpHeight-=world.elevation(hero.pos)-world.elevation(previousPosition);
+        jumpHeight+=jumpSpeed*dt-9.f*dt*dt; jumpSpeed-=18.f*dt;
+        if(jumpHeight<=0) { jumpHeight=jumpSpeed=0; soundEvents.push_back(1); }
+    }
+    camera.jumpHeight=jumpHeight;
+    stepTimer-=dt;
+    if(jumpHeight==0&&distance(previousPosition,hero.pos)>.001f&&stepTimer<=0) {
+        soundEvents.push_back(2); stepTimer=length(velocity)>hero.speed*1.1f?.23f:.38f;
+    }
+    if(soundEvents.size()>32) soundEvents.erase(soundEvents.begin(),soundEvents.end()-32);
     hero.velocity=velocity;
     if(!world.interior) tickDragon(*this,dt);
     tickInterior(dt); tickSociety(dt); tickQuests(dt);
     auto es=entities(); combat.tick(dt,es,world,texts);
-    for(int slot:casts) { auto error=combat.cast(hero,slot,aim,hero.target,es,data,world,texts); if(!error.empty()) message=error; else mastery[size_t(hero.role)]=std::min(100000,mastery[size_t(hero.role)]+1); }
+    for(int slot:casts) { auto error=combat.cast(hero,slot,aim,hero.target,es,data,world,texts); if(!error.empty()) message=error; else { mastery[size_t(hero.role)]=std::min(100000,mastery[size_t(hero.role)]+1); soundEvents.push_back(3); } }
     casts.clear();
     if(companions) tickParty(*this,dt); tickMobs(*this,dt); rewards();
     world.tick(dt); world.pushGrass(hero.pos,2.8f,dt*30);
@@ -252,7 +264,7 @@ void Game::renderUI(Framebuffer& f,float ms) {
         int w=std::min(66,f.width-4),x=(f.width-w)/2,y=std::max(2,f.height/2-7); box(f,x,y,w,14);
         f.text(x+2,y+1,classMenu?"CHOOSE YOUR CLASS":"ASHENMERE / controls",{222,201,148});
         if(classMenu) for(int i=0;i<5;++i) f.text(x+3,y+3+i*2,std::to_string(i+1)+"  "+roleName(Role(i)));
-        else { const char* lines[]={"WASD: move / hold to repeat","Mouse or arrows: aim / click or Space: primary","1-6: ability / Tab: cycle nearby targets","C: class / +/- or wheel: zoom","I: inventory / E: collect loot / R: respawn","B: travel to Dragon arena / H: close help","Q or Ctrl-C: restore terminal and quit"}; for(int i=0;i<7;++i) f.text(x+2,y+3+i,lines[i]); }
+        else { const char* lines[]={"WASD: move | Shift: sprint | Space: jump","Mouse or arrows: aim / click or 1: primary","1-6: ability / Tab: cycle nearby targets","C: class / +/- or wheel: zoom","I: inventory / E: collect loot / R: respawn","B: travel to Dragon arena / H: close help","Q or Ctrl-C: restore terminal and quit"}; for(int i=0;i<7;++i) f.text(x+2,y+3+i,lines[i]); }
     }
     if(inventoryMenu) {
         int w=std::min(64,f.width-2),h=std::min(f.height-2,28),x=(f.width-w)/2,y=1; box(f,x,y,w,h);

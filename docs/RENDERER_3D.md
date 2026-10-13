@@ -60,3 +60,15 @@ Hold **Shift + WASD** in the native window to sprint at 1.8× walking speed. Rel
 Validation: 260 core checks pass; GPU image comparisons under Metal API validation verify hidden and visible glyphs, plus density resize, raw preview and fallback. Hardware Shift/focus behavior was not verified interactively. Final native 240-frame result: 58.62 submissions/s at 60 target, 7.06 ms mean / 10.58 ms p95 CPU work, 0.287 ms terrain GPU and 2.331 ms conversion/composite GPU.
 
 [ASCII capture](screenshots/21-creature-depth-ascii.png) · [Matching raw view](screenshots/21-creature-depth-raw.png). The previous screenshots above show the same seed/location before depth rejection. Reference videos remain unavailable at the supplied paths.
+
+## Eternal C++ host and horizontal lakes
+
+The product name is now **Eternal**. `src/platform/window.cpp` replaces the Objective-C++ implementation; `mac_runtime.hpp` uses C++17 RAII and Apple's public C runtime ABI to call AppKit/Metal. Native tests are also C++. CMake enables only CXX. The GPU shader source remains MSL as requested. A clean Release build completes without compiler warnings. Existing executable/save paths are preserved.
+
+Water is no longer a blue material attached to inclined terrain. Each terrain triangle is clipped against a horizontal water level and receives a separate flat water polygon where submerged. The home lake has a carved basin; frontier basins use the configured water table. Noise-stripe rivers were removed because they did not follow gravity. This is static lake geometry, with coarse shoreline resolution; flow simulation and real reflections remain future work. A first-person swimming/wading height keeps the eye above water.
+
+Space now jumps, with gravity, landing and camera motion. Left-click/1 remain primary casting. AudioToolbox supplies synthesized footsteps, jump, landing and cast sounds from C++ (`--mute` disables them). Audio is currently macOS-only. Mob levels and level-scaled stats stop at 80, including migration of higher-level mobs from old saves; player progression is unchanged.
+
+Validation: 275 core checks, native GPU image/density/depth/fallback checks under Metal validation, and native audio startup/event/shutdown checks pass. Full native keyboard automation still stops at the existing macOS held-WD focus failure. A 240-frame sound-enabled run measured 58.27 submissions/s at a 60 target, CPU 4.08 ms mean / 4.98 ms p95, terrain GPU 0.218 ms and conversion/composite GPU 4.110 ms.
+
+[Horizontal lakes: ASCII](screenshots/22-eternal-lake-ascii.png) · [Raw geometry](screenshots/22-eternal-lake-raw.png). Captured with seed 42, `--no-mods --scene water --demo`. The earlier reference videos remain unavailable; these are actual game captures, not reference frames.

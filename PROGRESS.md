@@ -136,3 +136,18 @@ Reference: earlier supplied video paths are currently absent and ffmpeg is not i
 - Inspected ASCII/raw captures at the same location as the previous change, saved as docs/screenshots/21-creature-depth-*.png. The source videos are still unavailable. Models/vegetation remain the largest visual gap, outside this correction.
 - Final 240-frame native run: 58.62 submissions/s at a 60 target, CPU 7.06 ms mean / 10.58 ms p95, terrain GPU 0.287 ms, conversion/composite GPU 2.331 ms. No claim of sustained 60+ display FPS.
 - Remaining usage unavailable. Ready for user review; no subsequent renderer stage started.
+
+## Eternal rename, C++ host, jump, sound, level cap and lake correction
+Budget: remaining usage is not exposed. User confirmed Metal shaders may remain MSL; all host/game/window code must be C++.
+- Rename displayed title, help and VS Code run entries to Eternal; preserve executable/save identifiers for compatibility.
+- Replace Objective-C++ window and native tests with C++17, public runtime API calls and RAII ownership. Retain the same Metal shaders/atlas/input behavior.
+- Space jumps with gravity/landing (left-click/1 remain primary cast); synthesize jump/landing/footstep/cast sounds through AudioToolbox's C API. --mute disables audio; other platforms remain silent.
+- Cap new mobs at 80 and migrate over-cap saved mobs with proportional health/power correction. Player levels are unaffected.
+- Replace sloped blue terrain with horizontal clipped lake surfaces and a carved home basin. Remove noise-stripe river coloring until proper flow generation exists.
+- Validation in progress: core tests, C++ native input/GPU tests, raw/ASCII captures, clean C++ build and performance.
+- Complete: clean Release configuration/build detects only CXX; all game/window/native-test translation units are .cpp. Existing shader code remains MSL by explicit user choice. No compiler warnings in the clean build.
+- 275 core checks pass: jump/landing/pause/camera, no midair re-jump or accidental cast, enemy cap independent of player level, old-save level/stat migration, horizontal lake triangles, highland water exclusion and eye height above water. GPU image-comparison/density/fallback checks pass with Metal validation. The audio-only native test successfully opens the output device, handles all four effects and shuts down.
+- Full native input automation still fails the existing held-WD focus check because this session does not reliably acquire macOS keyboard focus. Enter/text-entry checks run before that point; do not claim the full interactive suite passed.
+- Sound-enabled 240-frame run: 58.27 submissions/s at 60 target, CPU work 4.08 ms mean / 4.98 ms p95; terrain GPU 0.218 ms, conversion/composite GPU 4.110 ms. This is not a display scanout measurement or a sustained 60+ guarantee.
+- Raw/ASCII lake captures stored as docs/screenshots/22-eternal-lake-*.png. Original reference videos remain unavailable; no video comparison is claimed. Water is a static plane over clipped basin geometry, not a flow/reflection simulation. Jump respects existing horizontal cliff collision. Existing saves/settings and executable paths remain compatible.
+- Remaining usage: unavailable. This request is ready for review; subsequent renderer stages were not started.

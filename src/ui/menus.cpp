@@ -198,7 +198,7 @@ void Game::renderMenu(Framebuffer& frame) {
     };
     if(screen==Screen::Title) {
         line(1,"A S H E N M E R E   /   A   S O L O   A D V E N T U R E",{128,174,187});
-        line(2,"E T E R N A L   R P G",{242,210,139});
+        line(2,"E T E R N A L",{242,210,139});
         option(0,"New adventure - create world & character"); option(1,"Continue / manage saved worlds");
         option(2,"Settings"); option(3,"Exit game");
         line(15,R"(                 /\          /\)",{111,166,183});

@@ -36,6 +36,11 @@ bool readEntity(std::istream& in,Entity& e,const Data& data) {
         if(id>=0&&(data.items[size_t(id)].slot!=int(slot)||std::find(e.inventory.begin(),e.inventory.end(),id)==e.inventory.end())) return false;
     }
     for(float& cooldown:e.cooldown) if(!(in>>cooldown)||!std::isfinite(cooldown)||cooldown<0) return false;
+    if(e.kind==Kind::Mob&&e.level>80) {
+        float healthScale=(1+.2f*79)/(1+.2f*(e.level-1));
+        e.hp*=healthScale; e.maxHp*=healthScale;
+        e.power*=(1+.15f*79)/(1+.15f*(e.level-1)); e.level=80;
+    }
     return true;
 }
 }

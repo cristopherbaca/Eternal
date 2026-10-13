@@ -34,7 +34,7 @@ void playerAvatar(Framebuffer& f,const Camera& camera,const Entity& hero,float t
         {R"(   /| |\   )",R"(   |   |\  )",R"(  _J   L_\ )"},
         {R"(   /| |\   )",R"(   || ||   )",R"(  /_J L_   )"}
     };
-    Vec2 base=camera.project(hero.pos);
+    Vec2 base=camera.project(hero.pos,camera.jumpHeight);
     // Use a shorter version on low-density terminal grids.
     const bool compact=camera.height<80;
     const int height=compact?7:10;

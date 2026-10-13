@@ -31,7 +31,10 @@ float World::rawHeight(Vec2 p) const {
     // Keep the established ruins, boss arena and landmark arrival points accessible.
     float safe=clamp((distance(p,{0,-5})-38)/35,0.f,1.f);
     for(const auto& l:landmarks) safe=std::min(safe,clamp((distance(p,l.pos)-9)/18,0.f,1.f));
-    return h*safe+6*(1-safe);
+    h=h*safe+6*(1-safe);
+    float bank=std::min({p.y-shore(p.x),85+5*std::sin(p.x*.07f)-p.y,72-std::abs(p.x)});
+    if(bank>0&&!road(p)&&!placeClearing(p,terrainSeed)) h-=3*smooth(0,8,bank);
+    return h;
 }
 World::HeightSample World::rawSample(Vec2 p) const {
     float h=rawHeight(p);
@@ -173,18 +176,17 @@ bool World::road(Vec2 p) const {
     float lane=p.x+12*std::sin(p.y*.009f);
     return std::abs(lane-std::round(lane/256)*256)<2.2f;
 }
-bool World::water(Vec2 p) const {
-    if(interior) return false;
-    if(placeClearing(p,terrainSeed)) return false;
-    if(road(p)) return false;
-    // Keep the reference lake; fade in height-derived frontier basins and river beds.
+float World::waterLevel(Vec2 p) const {
+    if(interior||placeClearing(p,terrainSeed)||road(p)) return -100000.f;
     float edge=std::max(std::abs(p.x),std::abs(p.y));
-    if(edge<140) return p.y>shore(p.x)&&p.y<85+5*std::sin(p.x*.07f)&&std::abs(p.x)<72;
-    auto land=terrain(p);
-    float extent=smooth(140,230,edge);
-    float level=-2+(config.lakeThreshold-.3f)*16;
-    return land.height<level-(1-extent)*50||(extent>.5f&&land.height<20&&std::abs(land.river)<.010f+land.moisture*.008f);
+    if(edge<140) {
+        bool lake=p.y>shore(p.x)&&p.y<85+5*std::sin(p.x*.07f)&&std::abs(p.x)<72;
+        return lake?5.5f:-100000.f;
+    }
+    // Frontier basins share a horizontal water table. A noise stripe is not a river.
+    return edge>230?-2+(config.lakeThreshold-.3f)*16:-100000.f;
 }
+bool World::water(Vec2 p) const { return elevation(p)<waterLevel(p); }
 const char* World::region(Vec2 p) const {
     if(distance(p,{30,-30})<25) return "Dragon Hollow";
     for(const auto& landmark:landmarks) if(distance(p,landmark.pos)<40) return landmark.name;

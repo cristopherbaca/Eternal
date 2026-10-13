@@ -33,6 +33,7 @@ public:
     int biome(Vec2 p) const;
     float terrainNoise(Vec2 p,uint32_t salt,float scale) const;
     bool road(Vec2 p) const; bool water(Vec2 p) const;
+    float waterLevel(Vec2 p) const;
     float shore(float x) const { return 37+3*std::sin(x*.09f)+1.5f*std::sin(x*.23f); }
     bool blocked(Vec2 p) const;
     Vec2 move(Vec2 p,Vec2 delta) const;

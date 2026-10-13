@@ -2,7 +2,7 @@
     "tasks": [
         {
             "type": "process",
-            "label": "EternalRPG: Build",
+            "label": "Eternal: Build",
             "command": "cmake",
             "osx": {
                 "command": "/private/tmp/eternalrpg-build-tools/cmake/data/bin/cmake"
@@ -25,12 +25,12 @@
         },
         {
             "type": "process",
-            "label": "EternalRPG: Run",
+            "label": "Eternal: Run",
             "command": "${workspaceFolder}/build/eternal_rpg",
             "options": {
                 "cwd": "${workspaceFolder}"
             },
-            "dependsOn": "EternalRPG: Build",
+            "dependsOn": "Eternal: Build",
             "problemMatcher": [],
             "presentation": {
                 "reveal": "always",

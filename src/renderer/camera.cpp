@@ -13,8 +13,11 @@ float Camera::ground(Vec2 p) const {
 View3D Camera::view() const {
     float pitch=firstPerson?lookPitch:tilt;
     float ct=std::cos(pitch),st=std::sin(pitch),cy=std::cos(yaw),sy=std::sin(yaw);
-    Vec3 forward{sy*ct,cy*ct,-st},target{center.x,center.y,ground(center)+2.5f};
-    Vec3 eye=firstPerson?Vec3{center.x,center.y,ground(center)+eyeHeight}:target-forward*(64/std::max(.3f,zoom));
+    float standing=ground(center);
+    // Wading/swimming keeps the first-person eye above the rendered water surface.
+    if(firstPerson&&terrain&&terrain->water(center)) standing=std::max(standing,terrain->waterLevel(center)-.8f);
+    Vec3 forward{sy*ct,cy*ct,-st},target{center.x,center.y,standing+2.5f+jumpHeight};
+    Vec3 eye=firstPerson?Vec3{center.x,center.y,standing+eyeHeight+jumpHeight}:target-forward*(64/std::max(.3f,zoom));
     return {{eye.x,eye.y,eye.z,0},{cy,-sy,0,0},{sy*st,cy*st,ct,0},{forward.x,forward.y,forward.z,0},
         {1/std::tan((firstPerson?clamp(fov/zoom,35*pi/180,95*pi/180):fov)*.5f),float(width)/(2*height),firstPerson?.08f:.5f,280}};
 }
