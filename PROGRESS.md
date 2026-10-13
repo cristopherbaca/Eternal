@@ -161,3 +161,9 @@ Budget: remaining usage is not exposed. User confirmed Metal shaders may remain 
 - 100 engaged stationary mobs over 3,600 ticks: full tickMobs cost 0.030 ms mean / 0.044 ms p95, 19,900 learning updates (optimized local CPU microbenchmark, no rendering). Headless boss smoke: 600 frames, 3.131 ms mean work / 3.562 ms p95. These are CPU measurements, not a new native display-FPS guarantee.
 - Scope: hostile mobs, including mob-based guards; companion and Dragon scripts are preserved. This is a short-horizon neural contextual bandit, not long-term tactical planning; successful training does not guarantee every encounter gets harder. No renderer changes or screenshot comparison needed.
 - Remaining usage: unavailable. Ready for local commit.
+
+## README refresh
+- Updated the README against current source and launch configurations: first-person Metal/ASCII rendering, controls, title/save flow, terrain/water, minimap, quests, neural combat learning, level cap, sound, mods and developer commands.
+- Replaced the historical title image with the current Eternal capture and added the lake capture. Removed obsolete single-draw renderer and through-terrain sprite descriptions; separated implemented features from unfinished renderer work.
+- Documentation-only validation: all 10 local README links resolve; git diff --check passes. No game code changed, so the previously recorded 291-check result is identified as the combat-learning validation rather than a new test run.
+- Remaining usage: unavailable.

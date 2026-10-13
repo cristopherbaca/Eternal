@@ -1,105 +1,96 @@
 # Eternal
 
-A single-player ASCII RPG in C++17 with a seed-based, streamed procedural world. Explore Ashenmere, Frostwood, Ember Hills, Reedlands and Dragon Hollow; defeat enemies, discover landmarks, earn XP and fight the Dragon. The networking client, server and multiplayer source have been removed.
+Eternal is a single-player ASCII RPG written in C++17, with a seeded procedural world and a native Metal window on macOS. Explore on foot in first person, fight enemies that learn simple combat tactics, collect equipment, develop your class, and discover towns, dungeons and the Dragon's hollow. It is a playable prototype under active development.
 
-![Single-player introduction](docs/screenshots/15-adventure-title.png)
+![Eternal title screen](docs/screenshots/22-eternal-title.png)
 
-On this Mac, select **Eternal — GPU Window (recommended)** in VS Code's **Run and Debug** dropdown and click **▶**. Press **Enter** on the introduction screen to start. The generic **Eternal: Run** task also launches the GPU window on macOS. The explicitly named external-terminal launch remains available. Use **Run → Run Without Debugging** for normal play.
+Build from the repository root with CMake 3.16+ and a C++17 compiler:
 
 ```sh
-cmake -B build
-cmake --build build
-./build/eternal_rpg --window  # native Metal window, macOS
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+./build/eternal_rpg --window  # macOS: native Metal ASCII window
 ./build/eternal_rpg           # terminal mode
 ```
 
-All game host code, including the macOS window and native tests, builds as C++17. A C++ RAII bridge calls Apple's AppKit/Metal runtime APIs; GPU shaders remain Metal Shading Language. No Objective-C++ compiler, Python, JavaScript or game-engine runtime is required to run the game. Terminal backends are provided for macOS, Linux and Windows. Only macOS has been tested locally; CI is configured for all three. On Windows, use `cmake --build build --config Release` and run `build\Release\eternal_rpg.exe`.
+On macOS, install Apple's Command Line Tools. All game host code, including the window and native tests, is C++17; a C++ runtime bridge calls AppKit and Metal. GPU shaders use Metal Shading Language. No Objective-C++ compiler or scripting runtime is needed to run the game. Terminal backends exist for macOS, Linux and Windows; local validation has been on macOS. For a Windows multi-configuration build, use `cmake --build build --config Release` and run `build\Release\eternal_rpg.exe`.
 
-New adventures have **God mode off by default**. Enable it in character creation or Settings for easy exploration: invulnerability, unlimited mana, 12× ability damage and 0.12-second ability cooldowns. New characters start at level 1 with zero gold, an empty inventory and no equipped gear. Demo/headless runs retain testing defaults; `--normal` disables them. Testing mode doesn't replace your class or level and can be toggled during a session.
+In VS Code, select **Eternal — GPU Window (recommended)** under **Run and Debug**, then use **Run → Run Without Debugging**. **Eternal: Run** also launches the native window on macOS; **Eternal — External Terminal** launches terminal mode. Configure CMake before using the build task. These launches build the whole project; a single-file Run Code button cannot build the game.
+
+The checked-in macOS task points to `/private/tmp/eternalrpg-build-tools/cmake/data/bin/cmake`. Change that path in [.vscode/tasks.json](.vscode/tasks.json) to your installed CMake if needed. This workspace uses the compatible macOS 26.5 SDK via `-DCMAKE_OSX_SYSROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk`; other machines should use an SDK compatible with their installed compiler/linker.
+
+Choose **New adventure** to enter world/player names, select Warrior, Mage, Archer, Cleric or Rogue, edit the generated **12-digit seed**, and choose whether to enable God mode. New characters start at level 1 with zero gold, an empty inventory and no equipment. God mode is off by default; enabling it grants invulnerability, unlimited mana, 12× ability damage and 0.12-second ability cooldowns. It can also be toggled in Settings.
 
 | Control | Action |
 | --- | --- |
-| Enter | Start the adventure / choose a menu item |
-| Esc / P | Pause, resume, or return from settings |
+| Enter / click | Choose a menu item; edit or finish a text field |
+| Esc / P | Pause or resume; menus release captured mouse look |
 | W/S or arrows in menus | Select an option |
 | A/D or Left/Right in Settings | Change selected setting |
-| WASD | Move |
-| Hold Shift + WASD | Sprint (1.8× speed, native window) |
-| Mouse / arrow keys in game | Aim |
-| Click / 1 | Primary ability |
+| WASD | Move relative to the camera in the 3D view |
+| Hold Shift + WASD | Sprint at 1.8× speed in the native window |
 | Space | Jump |
-| 1–6 | Cast abilities |
-| Tab | Cycle targets |
-| M | World map |
-| T on map | With testing powers enabled, jump to new procedural wilderness |
-| 1–5 on map | Travel to discovered landmarks; testing mode unlocks all destinations |
-| I, then J/K and Enter | Open inventory, select and equip/unequip |
-| E | Collect nearby loot |
-| C, then 1–5 | Change class outside combat (anytime with testing powers) |
-| + / - / scroll | Camera zoom |
-| B | Travel to Dragon arena |
-| R | Respawn after death |
-| H | Controls overlay |
-| Q | Exit |
+| Mouse movement | Look and aim with the center crosshair in first person |
+| Right mouse drag | Orbit/tilt in third-person mode |
+| Click / 1–6 | Primary ability / class abilities |
+| Tab | Cycle nearby targets |
+| I, then J/K and Enter | Inventory: select and equip/unequip |
+| E / G | Collect nearby loot / gather materials |
+| F / Y | Interact with a site or interior object / talk to a resident |
+| J / L / U | Quest journal / learned history / mastery, talents and crafting |
+| C, then 1–5 | Change class outside combat, or anytime in God mode |
+| M | World atlas; WASD pan, +/- zoom, C center, Tab select, Enter travel |
+| 1–5 on map | Travel to discovered starting landmarks |
+| T on map | With God mode enabled, jump into procedural wilderness |
+| + / - / scroll | View magnification; orbit distance in third person |
+| [ / ] | Adjust 3D field of view |
+| F8 / F9 | Native raw 3D preview / renderer diagnostics |
+| B / R | Travel to Dragon arena / respawn after death |
+| H / Q | Controls overlay / exit |
 
-Pause offers **Resume, Settings, World Map, Save Now, Save and Return to Title, and Save and Exit**. Menus freeze combat, AI, cooldowns and world time. Returning to title saves the current adventure.
+Native movement supports held diagonal combinations such as WA and WD, normalized to the same speed as straight movement. Jumping uses gravity and landing, and respects existing obstacle/cliff collision. Terminal movement depends on keyboard repeat; mouse or arrow keys aim in the 2D view. On macOS, footsteps, jumps, landings and successful casts have synthesized sounds; `--mute` disables them. Other platforms currently run silently.
 
-Settings include testing powers, optional AI companions (off by default), frame-rate target, native-window detail, camera zoom, name labels, control hints and class. Settings are saved on a normal exit to `.eternalrpg-settings.txt` in the working directory. Character/world progress is stored in eight independent save slots under `saves/` in the working directory. Saves use a temporary file followed by a rename, and autosave every 30 seconds of play as well as on normal exit. Class selection is unavailable during normal combat. Native detail changes glyph resolution; terminal mode takes its grid size from the terminal window.
+Pause offers resume, settings, world map and save/exit options. Menus freeze combat and world time. Settings include God mode, optional companions, frame-rate target, world glyph density, zoom, names and control hints. Preferences are stored in `.eternalrpg-settings.txt`.
 
-The world is generated from **seed + coordinates**, using smooth value noise for biomes/lakes and coordinate hashes for trees and enemies. The old 500×500 boundary is gone. Terrain streams in 64×64 chunks; only a 7×7 neighborhood is cached, so exploration does not keep expanding memory usage. Unloaded terrain regenerates identically for the same seed and mod set. The five starting landmarks and ruins remain near the origin; the frontier continues beyond them with forests, grassland, ember hills, wetlands, lakes and roads.
+**Continue / manage saved worlds** supports eight slots, with continue and confirmed deletion. Adventures autosave every 30 seconds of play and on normal exit; **Save Now** is available from pause. Saves retain the seed, generation settings, character progression, equipment, discoveries, nearby enemies, boss progress, quests, interiors, economy, materials, bounties and learned enemy networks. Active projectiles and temporary combat effects reset on load. Save format 7 reads versions 1–6; older adventures start with fresh combat networks. Back up `saves/` to transfer worlds, and keep matching game data/mod versions. The executable and save/settings paths retain their historical `eternal_rpg` / `eternalrpg` names for compatibility.
 
-Enemy spawns are generated around the current chunk. Distant encounters unload, new regions create new encounters, and defeated enemies respawn after a configurable interval. At most 100 mobs are active at once. Kill cooldowns survive leaving and returning during the cooldown, but distant surviving enemies reset when regenerated. Dropped loot beyond 200 units is discarded. This provides continuing encounters rather than a finite initial enemy population.
+The world uses seeded multi-octave noise and domain warping for elevation, with climate-based blending between grassland, deep forest, frost forest, swamp, desert, rocky highlands, snowy mountains and coast. Slopes affect movement and steep cliffs block it. Terrain streams in 64×64 chunks with a bounded 7×7 cache. The same seed, build and mod set regenerate the same terrain. Coordinates support roughly ±1,000,000 world units per axis; the world is large but finite. Building, mining and persistent terrain editing are not implemented.
 
-Hostile mobs learn combat tactics with a small C++ neural network (7 inputs, 12 hidden neurons, 5 action outputs). Each enemy type shares experience within the current save, choosing whether to approach, strike, circle left/right or retreat. Decisions occur every 0.3 seconds; rewards use actual damage dealt/received and closing distance. Small exploration keeps tactics from becoming fixed. This is short-term action learning, not strategic planning, and improvement is not guaranteed in every encounter. Attack range, cooldowns, terrain collision and the level-80 cap still apply. Training against a god-mode target is skipped. Neural weights and exploration state persist in saves; older saves start with fresh networks. Friendly companions and the Dragon retain their existing scripted AI.
+Lakes use horizontal water surfaces clipped against their terrain beds, including a carved starting basin. Rivers, reflective water and full water physics are unfinished. The minimap shows nearby surroundings, while the atlas tracks exploration and discovered sites. Ashenmere, Frostwood, Ember Hills, Reedlands and Dragon Hollow remain starting landmarks; towns and other sites extend into the frontier.
 
+Encounters stream around the player, with at most 100 active mobs. Defeated enemies respawn after a configurable interval, and distant surviving enemies reset when regenerated. Enemy levels scale with distance and stop at **80**, independently of the player's level. Older over-cap saved mobs have their level-scaled health/power reduced on load. Player level-ups cost `100 + 25 × current level` XP and grant +8 maximum HP and +2 power. Newly discovered starting landmarks award 150 XP.
 
-This is an effectively large procedural world, not mathematical infinity: the current float-coordinate implementation supports ±1,000,000 world units per axis. There is no voxel building/mining system. Terrain edits such as building or mining are not implemented. **M → T** jumps farther into the generated frontier in testing mode; **M → 1** returns home. The map now follows your position instead of displaying the entire world.
+Hostile mobs use a **7-input, 12-hidden-neuron, 5-output C++ neural network** to choose approach, strike, circle left/right or retreat. Each enemy type shares experience within a save. Decisions normally occur every 0.3 seconds, learning from actual damage dealt/received and closing distance, with occasional exploration. This is short-term action learning, not strategic planning; improvement is not guaranteed in every encounter. Range, cooldowns, collision and level limits still apply. Training against God mode is skipped. Weights and exploration state persist in saves; friendly companions and the Dragon keep their scripted AI.
 
-Landmarks award 150 discovery XP once per save (the starting landmark is already known). Enemies grow stronger with distance (enemy level caps at 80) and award level-scaled XP. Each player level costs `100 + 25 × current level` XP and grants **+8 maximum HP and +2 power**. These bonuses survive class changes.
+Equipment has Weapon, Clothing and Charm slots and modifies power/armor. Shops, gathering, crafting, class mastery/talents, witnessed theft and town bounties are playable. Resident jobs cycle through dungeon recovery, delivery and escort travel. See [living-world controls](docs/LIVING_WORLD.md) for objectives and interactions. Richer item generation and autonomous social relationships remain unfinished.
 
-Mods are loaded from `mods/`. Add a folder name to [`mods/enabled.txt`](mods/enabled.txt) and restart, or run:
+![ASCII lake terrain](docs/screenshots/22-eternal-lake-ascii.png)
+
+The native outdoor renderer draws perspective terrain into offscreen color, depth and normal buffers, then converts it to colored ASCII on the GPU. Depth/normal edges guide glyph selection, and hills occlude creature sprites and their labels. Characters and many objects still use projected glyph sprites rather than fully modeled 3D geometry. HUD and menus use a separate crisp text grid. Soft shadows, full 3D vegetation, reflective water and volumetric effects are unfinished; see the [renderer development log](docs/RENDERER_3D.md).
+
+First person is the native default. Use `--third-person` for an orbit camera, `--raw-3d` for terrain preview, or `--renderer-2d` for the previous native renderer. Settings offer Comfort, Detailed and Dense world grids independently of HUD text size. At a 1280×800 window, Detailed uses about 320×100 world cells and 160×50 HUD cells. Terminal mode uses the 2D renderer and benefits from a truecolor terminal, monospace font and roughly 200×60 cells. Interiors retain their existing renderer.
+
+Mods are declarative data packs loaded from `mods/`. Enable a folder name in [mods/enabled.txt](mods/enabled.txt) or select one at launch:
 
 ```sh
 ./build/eternal_rpg --window --mod wild_frontier
 ./build/eternal_rpg --list-mods
 ./build/eternal_rpg --window --no-mods
-./build/eternal_rpg --window --mod wild_frontier --position 4096 -4096
 ```
 
-The included **Wild Frontier** example is disabled by default. It changes forest/lake generation and enemy density, and adds a Frontier Stalker. Mods can override generation parameters and the existing content tables. These are declarative data packs, not arbitrary executable plugins or scripts. See the [mod creation guide](docs/MODS.md) for the format, load order, supported fields and limits.
+The disabled-by-default Wild Frontier example changes vegetation, lakes and enemy density and adds a Frontier Stalker. Packs can override generation settings and content tables; new algorithms or ability behaviors require C++ changes. See the [mod guide](docs/MODS.md).
 
-Movement in the GPU window reads the complete held-key state: WA, WD, AS and SD move diagonally at the same speed as straight movement. Releasing one key retains the other direction, and opposing keys cancel. The local player wears compact silver-blue ASCII armor. Its silhouette stays small at every zoom level, with idle breathing and a four-frame walking cycle (alternating feet, arm swing and body bob). The silhouette stays visible when scenery overlaps it; muted green foliage and warm enemy accents distinguish terrain from characters.
-
-The Metal backend renders the same RGB glyph framebuffer using a cached Menlo atlas and one GPU draw call. It avoids ANSI terminal output and handles held movement keys and key releases directly. Use **Comfort**, **Detailed**, or **Dense** in Settings to balance readable text against glyph density. The displayed `Sent fps` measures submissions, not verified display scanout.
-
-Terminal mode needs a truecolor terminal and a monospace font. About 200×60 cells is a useful starting point. More rows/columns improve detail but increase terminal work; 320×100 is better suited to the GPU window. Terminal movement depends on keyboard repeat because portable terminals do not report key releases.
+For testing and diagnostics:
 
 ```sh
-./build/eternal_rpg --window --scene boss --demo
-./build/eternal_rpg --normal --scene forest
-./build/eternal_rpg --benchmark --scene boss --demo --frames 600 --width 320 --height 100
 ctest --test-dir build --output-on-failure
-python3 tools/terminal_smoke.py build/eternal_rpg  # optional POSIX developer check
+./build/eternal_rpg --window --scene boss --demo
+./build/eternal_rpg --window --demo --normal --seed 42 --scene water
+./build/eternal_rpg --benchmark --scene boss --demo --frames 600 --stats metrics.json
+./build/eternal_native_input_tests --renderer-only  # macOS graphical desktop
+./build/eternal_native_input_tests --audio-only     # macOS audio output
 ```
 
-`--demo` and headless runs skip the introduction and saved preferences for reproducibility. Use `--seed`, `--name`, `--class`, `--fps`, `--scene` and `--data` for startup overrides. An explicit class/FPS overrides the remembered setting. Data tables in `data/` define five classes, 30 abilities, enemies, items and boss phases. Run `--help` for options. Python and the optional macOS capture tool are development utilities, not game dependencies.
+`--demo` and headless runs skip the title and saved preferences; testing powers are enabled unless `--normal` is supplied. `--seed`, `--name`, `--class`, `--fps`, `--scene`, `--position` and `--data` provide startup overrides; run `--help` for options. An explicit class/FPS overrides remembered preferences. `ER_CAPTURE=/tmp/eternal.png ./build/eternal_rpg --window --demo --frames 2` captures a GPU frame. Optional Python terminal checks and capture utilities are developer tools, not game dependencies.
 
-See [validation](docs/VALIDATION.md) and the [historical milestones](docs/MILESTONES.md). Original reference screenshots in that log predate the solo conversion. The visuals still approximate the reference videos; this remains a playable prototype rather than a finished commercial RPG.
-
-This workspace uses a compatible macOS 26.5 SDK (`-DCMAKE_OSX_SYSROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk`). The VS Code build task currently points at `/private/tmp/eternalrpg-build-tools/cmake/data/bin/cmake`; update its command if that temporary installation is removed. CMake exports a compilation database used by the included VS Code C/C++ configuration. Use the whole-project launch, not Code Runner's single-file Run Code button.
-
-The Metal window renders menus, status panels and the hotbar on a separate 8×16-point text grid, independently of terrain detail. For renderer diagnostics, `ER_CAPTURE=/tmp/eternal.png ./build/eternal_rpg --window --frames 2` captures the first actual GPU frame (including the glyph atlas and interface).
-
-On macOS, `./build/eternal_native_input_tests` opens a short-lived test window and checks AppKit event routing, held WASD, releases, pause/resume clicks and mouse casting. It requires a graphical desktop.
-
-Create a world from **New adventure**: enter a world name and player name, choose Warrior/Mage/Archer/Cleric/Rogue, edit the generated 12-digit seed if desired, and toggle God mode. Enter or click a text field to edit it; Backspace erases and Enter finishes. Both halves of the numeric seed contribute to terrain generation, and leading zeros remain visible in the world map.
-
-**Continue / manage saved worlds** lists eight slots. Select a world to continue or delete it; deletion requires confirmation and defaults to Cancel. Saves retain level/XP, health/mana, gold, inventory, equipped items, position, discoveries, nearby enemies, boss progress, dropped loot, respawn deadlines, seed and generation settings. Active projectiles, particles and temporary status effects reset when loading. Use the same game data and mod versions when continuing; mismatched mod names or item tables are rejected. Back up the `saves/` folder to transfer adventures.
-
-Equipment slots are **Weapon, Clothing, Charm**. Defeat enemies and press E near loot; open I, select with J/K and press Enter to equip or remove an item. Additional drops include a linen tunic, leather coat and iron sword. Equipment affects power/armor; the player sprite distinguishes bare hands and plain clothing from equipped gear. Basic shops, dungeon jobs, class mastery/talents, crafting and witnessed theft are now playable. These are lightweight prototype systems; richer quest types, random item affixes and autonomous social relationships remain unfinished. See [living-world controls](docs/LIVING_WORLD.md).
-
-Enemy levels are capped at **80**, independently of the player's level. Loading an older save reduces over-cap mobs and their level-scaled health/power to level 80. Player progression is unchanged.
-
-On macOS, footsteps, jumps, landings and successful casts use quiet synthesized audio. Add `--mute` to disable sound. Audio is currently silent on other platforms. Space jumps with gravity and landing; it does not bypass existing cliff or obstacle collision.
-
-Lakes now use horizontal, shoreline-clipped water geometry above the terrain bed. The home lake has a carved basin; frontier lakes fill below a fixed water table. The former noise-stripe river coloring has been removed because it placed water on hillsides; flowing rivers are not yet simulated. Existing seeds remain deterministic, with updated water placement. Save/settings paths and the `eternal_rpg` executable name remain compatible with older installs.
+The latest combat-learning change passed **291 core checks**. A local Release stress test with 100 engaged stationary mobs measured the complete mob-AI update at **0.030 ms mean / 0.044 ms p95**. This measures CPU AI work, not display FPS. F9 reports renderer timings; displayed `Sent fps` measures submissions rather than verified display scanout. Full native input automation requires reliable desktop keyboard focus and has not passed consistently in this environment. See [validation notes](docs/VALIDATION.md), [historical milestones](docs/MILESTONES.md) and [PROGRESS.md](PROGRESS.md) for test history and outstanding work.
