@@ -52,7 +52,7 @@ void Game::refreshSaves() {
         if(!std::filesystem::exists(path,error)) continue;
         saves[size_t(i)].exists=true;
         std::ifstream in(path); std::string magic,name,player; int version; uint64_t seed;
-        if(in>>magic>>version>>std::quoted(name)>>seed>>std::quoted(player); in&&magic=="ETERNAL"&&(version>=1&&version<=6))
+        if(in>>magic>>version>>std::quoted(name)>>seed>>std::quoted(player); in&&magic=="ETERNAL"&&(version>=1&&version<=7))
             saves[size_t(i)].label=name+" / "+player;
         else saves[size_t(i)].label="Unreadable save (can be deleted)";
     }
@@ -88,7 +88,7 @@ bool Game::saveAdventure() {
         std::filesystem::create_directories(saveDirectory);
         auto path=slotPath(saveDirectory,activeSave),temp=path; temp+=".tmp";
         std::ofstream out(temp,std::ios::trunc); out<<std::setprecision(9);
-        out<<"ETERNAL 6 "<<std::quoted(worldName)<<' '<<world.seed<<' '<<std::quoted(hero.name)<<'\n';
+        out<<"ETERNAL 7 "<<std::quoted(worldName)<<' '<<world.seed<<' '<<std::quoted(hero.name)<<'\n';
         out<<activeMods.size()<<' '; for(const auto& mod:activeMods) out<<std::quoted(mod)<<' '; out<<'\n';
         out<<data.items.size()<<' '; for(const auto& item:data.items) out<<std::quoted(item.name)<<' '; out<<'\n';
         const auto& gen=world.config;
@@ -110,6 +110,8 @@ bool Game::saveAdventure() {
         }
         out<<clearedPlaces.size()<<'\n'; for(auto id:clearedPlaces) out<<id.first<<' '<<id.second<<'\n';
         saveLiving(out);
+        out<<"COMBAT_BRAINS 1 "<<combatBrains.size()<<'\n';
+        for(const auto& brain:combatBrains) brain.save(out);
         out.close(); if(!out) throw std::runtime_error("Cannot write save file");
         std::filesystem::rename(temp,path); saveTimer=0; menuNotice="Adventure saved."; return true;
     } catch(const std::exception& e) { menuNotice=std::string("Save failed: ")+e.what(); return false; }
@@ -119,7 +121,7 @@ bool Game::loadAdventure(int slot) {
     try {
         std::ifstream in(slotPath(saveDirectory,slot)); std::string magic,title,name; int version; uint64_t seed;
         auto require=[&](bool condition) { if(!condition) throw std::runtime_error("Invalid or incompatible save"); };
-        require(bool(in>>magic>>version>>std::quoted(title)>>seed>>std::quoted(name))&&magic=="ETERNAL"&&(version>=1&&version<=6)&&seed<1000000000000ULL&&title.size()<=24);
+        require(bool(in>>magic>>version>>std::quoted(title)>>seed>>std::quoted(name))&&magic=="ETERNAL"&&(version>=1&&version<=7)&&seed<1000000000000ULL&&title.size()<=24);
         size_t count; require(bool(in>>count)&&count==activeMods.size());
         for(const auto& mod:activeMods) { std::string stored; require(bool(in>>std::quoted(stored))&&stored==mod); }
         require(bool(in>>count)&&count==data.items.size());
@@ -161,6 +163,12 @@ bool Game::loadAdventure(int slot) {
             for(size_t i=0;i<count;++i) { int x,y; require(bool(in>>x>>y)&&std::abs(int64_t(x))<4000&&std::abs(int64_t(y))<4000); fresh.clearedPlaces.insert({x,y}); }
         }
         if(version>=4) require(fresh.loadLiving(in,version));
+        if(version>=7) {
+            std::string tag; int format;
+            require(bool(in>>tag>>format>>count)&&tag=="COMBAT_BRAINS"&&format==1&&(count==0||count==data.enemies.size()));
+            fresh.combatBrains.resize(count);
+            for(auto& brain:fresh.combatBrains) require(brain.load(in));
+        }
         fresh.atlas.discover(fresh.interiorSite?fresh.outsidePosition:fresh.hero.pos);
         fresh.camera.center=fresh.hero.pos; fresh.camera.zoom=camera.zoom; fresh.world.focus(fresh.hero.pos);
         fresh.enemyCenter=World::chunkAt(fresh.hero.pos); fresh.spawnTimer=1;

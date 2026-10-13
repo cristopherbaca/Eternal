@@ -151,3 +151,13 @@ Budget: remaining usage is not exposed. User confirmed Metal shaders may remain 
 - Sound-enabled 240-frame run: 58.27 submissions/s at 60 target, CPU work 4.08 ms mean / 4.98 ms p95; terrain GPU 0.218 ms, conversion/composite GPU 4.110 ms. This is not a display scanout measurement or a sustained 60+ guarantee.
 - Raw/ASCII lake captures stored as docs/screenshots/22-eternal-lake-*.png. Original reference videos remain unavailable; no video comparison is claimed. Water is a static plane over clipped basin geometry, not a flow/reflection simulation. Jump respects existing horizontal cliff collision. Existing saves/settings and executable paths remain compatible.
 - Remaining usage: unavailable. This request is ready for review; subsequent renderer stages were not started.
+
+## Combat learning — current request
+- Remaining usage is not exposed in this session.
+- Implement a C++ 7-input / 12-hidden / 5-output neural contextual bandit for hostile mobs: approach, strike, circle left/right, retreat. Share experience by archetype within each save, decide at 0.3-second intervals, keep terrain collision/range/cooldowns and existing party/boss rules.
+- Learn short-exchange rewards from actual damage dealt/received and closing distance; suppress training against god mode. Persist weights and deterministic exploration state in version 7 saves; versions 1–6 remain readable. Transient action credit does not cross loads or distant streaming.
+- Validation underway: neural learning, bounds, deterministic decisions, combat constraints and save compatibility.
+- Complete: warning-free Release build and 291 core checks pass. Tests cover signed reward learning, seeded initialization/exploration, masked actions, invalid-weight rejection, real combat learning cadence, range/cooldown limits, one-time death credit, god-mode exclusion, save round trips, v6 compatibility and malformed neural-section rejection.
+- 100 engaged stationary mobs over 3,600 ticks: full tickMobs cost 0.030 ms mean / 0.044 ms p95, 19,900 learning updates (optimized local CPU microbenchmark, no rendering). Headless boss smoke: 600 frames, 3.131 ms mean work / 3.562 ms p95. These are CPU measurements, not a new native display-FPS guarantee.
+- Scope: hostile mobs, including mob-based guards; companion and Dragon scripts are preserved. This is a short-horizon neural contextual bandit, not long-term tactical planning; successful training does not guarantee every encounter gets harder. No renderer changes or screenshot comparison needed.
+- Remaining usage: unavailable. Ready for local commit.

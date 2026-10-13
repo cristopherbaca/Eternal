@@ -50,9 +50,12 @@ The world is generated from **seed + coordinates**, using smooth value noise for
 
 Enemy spawns are generated around the current chunk. Distant encounters unload, new regions create new encounters, and defeated enemies respawn after a configurable interval. At most 100 mobs are active at once. Kill cooldowns survive leaving and returning during the cooldown, but distant surviving enemies reset when regenerated. Dropped loot beyond 200 units is discarded. This provides continuing encounters rather than a finite initial enemy population.
 
+Hostile mobs learn combat tactics with a small C++ neural network (7 inputs, 12 hidden neurons, 5 action outputs). Each enemy type shares experience within the current save, choosing whether to approach, strike, circle left/right or retreat. Decisions occur every 0.3 seconds; rewards use actual damage dealt/received and closing distance. Small exploration keeps tactics from becoming fixed. This is short-term action learning, not strategic planning, and improvement is not guaranteed in every encounter. Attack range, cooldowns, terrain collision and the level-80 cap still apply. Training against a god-mode target is skipped. Neural weights and exploration state persist in saves; older saves start with fresh networks. Friendly companions and the Dragon retain their existing scripted AI.
+
+
 This is an effectively large procedural world, not mathematical infinity: the current float-coordinate implementation supports ±1,000,000 world units per axis. There is no voxel building/mining system. Terrain edits such as building or mining are not implemented. **M → T** jumps farther into the generated frontier in testing mode; **M → 1** returns home. The map now follows your position instead of displaying the entire world.
 
-Landmarks award 150 discovery XP once per save (the starting landmark is already known). Enemies grow stronger with distance (enemy level caps at 100) and award level-scaled XP. Each player level costs `100 + 25 × current level` XP and grants **+8 maximum HP and +2 power**. These bonuses survive class changes.
+Landmarks award 150 discovery XP once per save (the starting landmark is already known). Enemies grow stronger with distance (enemy level caps at 80) and award level-scaled XP. Each player level costs `100 + 25 × current level` XP and grants **+8 maximum HP and +2 power**. These bonuses survive class changes.
 
 Mods are loaded from `mods/`. Add a folder name to [`mods/enabled.txt`](mods/enabled.txt) and restart, or run:
 

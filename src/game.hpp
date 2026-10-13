@@ -18,6 +18,7 @@ class Game {
 public:
     std::filesystem::path sourceData,saveDirectory="saves";
     ModSet sourceMods;
+    std::vector<CombatNetwork> combatBrains;
     std::string worldName="Untitled world",draftWorld="New world",draftName="",draftSeed;
     Role draftRole=Role::Warrior;
     bool draftGod=false,editingField=false;

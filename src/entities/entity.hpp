@@ -1,5 +1,6 @@
 #pragma once
 #include "core/math.hpp"
+#include "ai/neural.hpp"
 #include <array>
 #include <string>
 #include <vector>
@@ -17,6 +18,7 @@ struct Entity {
     float attackTimer=0,poison=0,slow=0,shield=0,deadTime=0,taunt=0,hurtTime=0,dotTimer=0;
     std::array<float,6> cooldown{};
     std::vector<int> inventory; std::array<int,3> equipment{{-1,-1,-1}}; int archetype=0;
+    CombatExperience experience{}; // Runtime only; never credit an action across save/load.
     int spawnChunkX=0,spawnChunkY=0,spawnSlot=-1;
 };
 struct Loot { Vec2 pos; int item=0,gold=0; };

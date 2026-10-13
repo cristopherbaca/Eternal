@@ -16,6 +16,53 @@ int checks=0;
 void check(bool ok,const char* name) { ++checks; if(!ok) throw std::runtime_error(name); }
 int main() { try {
     using namespace er;
+    {
+        CombatNetwork first(42),same(42),different(43);
+        CombatNetwork::Observation x{.4f,.8f,.2f,.5f,1,0,.3f};
+        check(first.predict(x)==same.predict(x)&&first.predict(x)!=different.predict(x),"neural initialization is seeded");
+        for(int i=0;i<300;++i) { first.learn(x,2,.8f); first.learn(x,3,-.8f); }
+        check(first.predict(x)[2]>.7f&&first.predict(x)[3]<-.7f&&first.updates==600,"network learns positive and negative combat outcomes");
+        std::stringstream stored; stored.precision(9); first.save(stored); CombatNetwork loaded;
+        check(loaded.load(stored)&&loaded.predict(x)==first.predict(x)&&loaded.updates==600,"network weights round trip exactly");
+        bool deterministic=true; std::array<bool,5> allowed{true,true,true,true,true}; CombatNetwork::Scores prior{};
+        for(int i=0;i<100;++i) deterministic &= first.choose(x,prior,allowed)==loaded.choose(x,prior,allowed);
+        check(deterministic,"exploration state resumes deterministically");
+        allowed={false,true,false,false,false}; bool masked=true;
+        for(int i=0;i<100;++i) masked &= first.choose(x,prior,allowed)==1;
+        check(masked,"exploration respects action masks");
+        auto before=first.predict(x); std::stringstream corrupt("1 0 9999");
+        check(!first.load(corrupt)&&first.predict(x)==before,"invalid weights rejected without changing model");
+        Game learner; learner.mobs.clear(); learner.party.clear(); learner.dragon.alive=false;
+        learner.hero.testing=false; learner.hero.hp=learner.hero.maxHp=10000;
+        learner.spawnMob(learner.hero.pos+Vec2{1,0},0); learner.mobs[0].speed=0;
+        auto& mob=learner.mobs[0]; float hp=learner.hero.hp;
+        for(int i=0;i<120;++i) tickMobs(learner,1.f/60);
+        float hit=damageAfterArmor(mob.power,learner.hero.armor);
+        check(learner.hero.hp<hp&&hp-learner.hero.hp<=2*hit+.01f,"learning enemies attack without bypassing cooldown");
+        check(learner.combatBrains[0].updates>0&&learner.combatBrains[0].updates<12,"real combat trains at bounded decision cadence");
+        mob.pos=learner.hero.pos+Vec2{9,0}; mob.experience={}; hp=learner.hero.hp;
+        for(int i=0;i<120;++i) tickMobs(learner,1.f/60);
+        check(learner.hero.hp==hp,"neural decisions cannot attack beyond range");
+        uint64_t updates=learner.combatBrains[0].updates;
+        mob.hp=0; mob.alive=false; tickMobs(learner,1.f/60); tickMobs(learner,1.f/60);
+        check(learner.combatBrains[0].updates==updates+1,"death trains once then clears pending experience");
+        mob.hp=mob.maxHp; mob.alive=true; learner.hero.testing=true; updates=learner.combatBrains[0].updates;
+        for(int i=0;i<120;++i) tickMobs(learner,1.f/60);
+        check(learner.combatBrains[0].updates==updates,"god mode does not poison combat learning");
+        auto root=std::filesystem::temp_directory_path()/("eternal-neural-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+        learner.saveDirectory=root; learner.activeSave=0;
+        check(learner.saveAdventure(),"learned combat saves");
+        Game restored; restored.saveDirectory=root;
+        check(restored.loadAdventure(0)&&restored.combatBrains[0].predict(x)==learner.combatBrains[0].predict(x)&&restored.combatBrains[0].updates==updates,"world save restores combat learning");
+        check(restored.mobs[0].experience.action==-1,"saved mobs discard transient action credit");
+        std::ifstream source(root/"slot-1.sav"); std::string saved((std::istreambuf_iterator<char>(source)),{}); source.close();
+        auto tag=saved.find("COMBAT_BRAINS"); std::string legacy=saved.substr(0,tag); legacy.replace(0,9,"ETERNAL 6");
+        { std::ofstream out(root/"slot-2.sav"); out<<legacy; }
+        check(restored.loadAdventure(1)&&restored.combatBrains.empty(),"version 6 worlds load with fresh learning");
+        { std::ofstream out(root/"slot-3.sav"); out<<saved.substr(0,tag)<<"COMBAT_BRAINS 1 99999"; }
+        check(!restored.loadAdventure(2)&&restored.activeSave==1,"invalid neural save section does not replace world");
+        std::filesystem::remove_all(root);
+    }
     check(std::abs(length(normalized({3,4}))-1)<.0001f,"vector normalization");
     check(length(normalized({0,0}))==0,"zero normalization");
     Camera fp; fp.perspective=true; fp.firstPerson=true; fp.center={0,0}; fp.lookPitch=0;
